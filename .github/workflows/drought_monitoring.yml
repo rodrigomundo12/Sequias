@@ -9,44 +9,44 @@ jobs:
 
     runs-on: self-hosted
 
-    defaults:
-      run:
-        shell: powershell -ExecutionPolicy Bypass -File {0}
-
     steps:
 
-      - name: Test runner
-        shell: powershell
+      - name: Test local runner
+        shell: cmd
         run: |
-          Write-Host "=============================================="
-          Write-Host "SEQUIAS LOCAL RUNNER TEST"
-          Write-Host "=============================================="
+          echo ==============================================
+          echo SEQUIAS LOCAL RUNNER TEST
+          echo ==============================================
 
-          Write-Host ""
-          Write-Host "Computer:"
-          $env:COMPUTERNAME
+          echo.
+          echo Computer:
+          echo %COMPUTERNAME%
 
-          Write-Host ""
-          Write-Host "User:"
-          $env:USERNAME
+          echo.
+          echo User:
+          echo %USERNAME%
 
-          Write-Host ""
-          Write-Host "Current directory:"
-          Get-Location
+          echo.
+          echo Current directory:
+          cd
 
-          Write-Host ""
-          Write-Host "Python:"
+          echo.
+          echo Python:
           python --version
 
-          Write-Host ""
-          Write-Host "Python executable:"
-          Get-Command python
+          echo.
+          echo Python executable:
+          where python
 
-          Write-Host ""
-          Write-Host "Project directory:"
-          Test-Path "C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos"
+          echo.
+          echo Project directory:
+          if exist "C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos" (
+              echo TRUE
+          ) else (
+              echo FALSE
+          )
 
-          Write-Host ""
-          Write-Host "=============================================="
-          Write-Host "RUNNER TEST COMPLETE"
-          Write-Host "=============================================="
+          echo.
+          echo ==============================================
+          echo RUNNER TEST COMPLETE
+          echo ==============================================
