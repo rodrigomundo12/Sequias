@@ -1176,237 +1176,349 @@ for hydro_year in YEARS:
 
 print()
 print("=" * 80)
-print(
-    "MERGING QUARTERLY TILES"
-)
+print("MERGING QUARTERLY TILES")
 print("=" * 80)
 
 
-for hydro_year in YEARS:
+def merge_tiles_manual(
+    tile_files,
+    output_path
+):
+    """
+    Merge regularly arranged EPSG:4326 tiles without using
+    rasterio.merge.merge().
 
-
-    quarter_name = (
-        TARGET_QUARTER_NAME
-    )
-
-
-    output_path = (
-        composite_path(
-            hydro_year,
-            quarter_name
-        )
-    )
-
-
-    if composite_exists(
-
-        hydro_year,
-
-        quarter_name
-
-    ):
-
-        print()
-
-        print(
-
-            f"✓ Composite already exists: "
-
-            f"{os.path.basename(output_path)}"
-
-        )
-
-        continue
-
-
-    tile_files = sorted(
-
-        os.path.join(
-
-            QUARTERLY_TILE_DIR,
-
-            f
-
-        )
-
-        for f in os.listdir(
-
-            QUARTERLY_TILE_DIR
-
-        )
-
-        if (
-
-            f.startswith(
-
-                f"{quarter_name}_"
-                f"{hydro_year}_"
-
-            )
-
-            and
-
-            f.endswith(".tif")
-
-        )
-
-    )
-
+    This avoids an Affine/rasterio compatibility problem in the
+    ArcGIS Pro Python environment.
+    """
 
     if not tile_files:
-
         raise RuntimeError(
-
-            f"No tiles found for "
-            f"{hydro_year} "
-            f"{quarter_name}"
-
+            "No tile files were provided for merging."
         )
 
-
-    print()
-
     print(
-
-        f"Merging "
-        f"{len(tile_files)} tiles "
-        f"for {hydro_year}"
-
+        f"Merging {len(tile_files)} tiles"
     )
 
+    # ------------------------------------------------------------
+    # Open all tiles
+    # ------------------------------------------------------------
 
-    srcs = []
-
+    srcs = [
+        rasterio.open(path)
+        for path in tile_files
+    ]
 
     try:
 
+        # --------------------------------------------------------
+        # Validate common properties
+        # --------------------------------------------------------
 
-        for tile_path in tile_files:
+        first = srcs[0]
 
-            srcs.append(
+        width = first.width
+        height = first.height
+        count = first.count
+        crs = first.crs
 
-                rasterio.open(
-                    tile_path
-                )
-
+        if count != 5:
+            raise RuntimeError(
+                f"Expected 5 bands, found {count}."
             )
-
-
-        source_crs = (
-            srcs[0].crs
-        )
-
 
         for src in srcs:
 
-            if src.crs != source_crs:
-
+            if src.width != width:
                 raise RuntimeError(
-
-                    f"CRS mismatch: "
-                    f"{src.name}"
-
+                    "Tile widths are inconsistent."
                 )
 
-
-        mosaic, transform = merge(
-
-            srcs,
-
-            nodata=np.nan,
-
-            dtype=np.float32
-
-        )
-
-
-        print(
-            f"Mosaic shape: "
-            f"{mosaic.shape}"
-        )
-
-
-        profile = (
-            srcs[0].profile.copy()
-        )
-
-
-        profile.update(
-
-            driver="GTiff",
-
-            height=mosaic.shape[1],
-
-            width=mosaic.shape[2],
-
-            count=mosaic.shape[0],
-
-            dtype="float32",
-
-            crs=source_crs,
-
-            transform=transform,
-
-            nodata=np.nan,
-
-            compress="lzw",
-
-            tiled=True,
-
-            blockxsize=256,
-
-            blockysize=256,
-
-            BIGTIFF="YES"
-
-        )
-
-
-        with rasterio.open(
-
-            output_path,
-
-            "w",
-
-            **profile
-
-        ) as dst:
-
-            dst.write(
-
-                mosaic.astype(
-                    np.float32
+            if src.height != height:
+                raise RuntimeError(
+                    "Tile heights are inconsistent."
                 )
 
+            if src.count != count:
+                raise RuntimeError(
+                    "Tile band counts are inconsistent."
+                )
+
+            if src.crs != crs:
+                raise RuntimeError(
+                    "Tile CRS values are inconsistent."
+                )
+
+        # --------------------------------------------------------
+        # Get tile geographic bounds
+        # --------------------------------------------------------
+
+        tile_info = []
+
+        for src in srcs:
+
+            bounds = src.bounds
+
+            tile_info.append(
+                {
+                    "src": src,
+                    "left": float(bounds.left),
+                    "right": float(bounds.right),
+                    "bottom": float(bounds.bottom),
+                    "top": float(bounds.top)
+                }
             )
 
+        # --------------------------------------------------------
+        # Determine common pixel size
+        # --------------------------------------------------------
 
-        print()
+        pixel_width = (
+            tile_info[0]["right"]
+            - tile_info[0]["left"]
+        ) / width
 
-        print(
-            f"✓ Saved: "
-            f"{output_path}"
+        pixel_height = (
+            tile_info[0]["top"]
+            - tile_info[0]["bottom"]
+        ) / height
+
+        # --------------------------------------------------------
+        # Determine total mosaic extent
+        # --------------------------------------------------------
+
+        west = min(
+            item["left"]
+            for item in tile_info
         )
 
+        east = max(
+            item["right"]
+            for item in tile_info
+        )
+
+        south = min(
+            item["bottom"]
+            for item in tile_info
+        )
+
+        north = max(
+            item["top"]
+            for item in tile_info
+        )
+
+        # --------------------------------------------------------
+        # Calculate mosaic dimensions
+        # --------------------------------------------------------
+
+        mosaic_width = int(
+            round(
+                (east - west)
+                / pixel_width
+            )
+        )
+
+        mosaic_height = int(
+            round(
+                (north - south)
+                / pixel_height
+            )
+        )
+
+        print(
+            f"Mosaic size: "
+            f"{mosaic_width} x "
+            f"{mosaic_height}"
+        )
+
+        print(
+            f"Pixel size: "
+            f"{pixel_width:.10f} x "
+            f"{pixel_height:.10f} degrees"
+        )
+
+        # --------------------------------------------------------
+        # Allocate mosaic
+        # --------------------------------------------------------
+
+        mosaic = np.full(
+            (
+                count,
+                mosaic_height,
+                mosaic_width
+            ),
+            np.nan,
+            dtype=np.float32
+        )
+
+        # --------------------------------------------------------
+        # Insert each tile
+        # --------------------------------------------------------
+
+        for idx, item in enumerate(
+            tile_info,
+            start=1
+        ):
+
+            src = item["src"]
+
+            print(
+                f"  Adding tile "
+                f"{idx}/{len(tile_info)}"
+            )
+
+            data = src.read(
+                out_dtype=np.float32
+            )
+
+            # ----------------------------------------------------
+            # Calculate destination position
+            # ----------------------------------------------------
+
+            col_offset = int(
+                round(
+                    (
+                        item["left"]
+                        - west
+                    )
+                    / pixel_width
+                )
+            )
+
+            row_offset = int(
+                round(
+                    (
+                        north
+                        - item["top"]
+                    )
+                    / pixel_height
+                )
+            )
+
+            row_end = (
+                row_offset
+                + height
+            )
+
+            col_end = (
+                col_offset
+                + width
+            )
+
+            # ----------------------------------------------------
+            # Validate destination
+            # ----------------------------------------------------
+
+            if row_offset < 0:
+                raise RuntimeError(
+                    "Calculated negative row offset."
+                )
+
+            if col_offset < 0:
+                raise RuntimeError(
+                    "Calculated negative column offset."
+                )
+
+            if row_end > mosaic_height:
+                raise RuntimeError(
+                    "Tile extends beyond mosaic "
+                    "height."
+                )
+
+            if col_end > mosaic_width:
+                raise RuntimeError(
+                    "Tile extends beyond mosaic "
+                    "width."
+                )
+
+            # ----------------------------------------------------
+            # Write tile
+            # ----------------------------------------------------
+
+            mosaic[
+                :,
+                row_offset:row_end,
+                col_offset:col_end
+            ] = data
+
+            del data
+
+            gc.collect()
+
+        # --------------------------------------------------------
+        # Create transform manually
+        # --------------------------------------------------------
+
+        transform = Affine(
+            pixel_width,
+            0.0,
+            west,
+            0.0,
+            -pixel_height,
+            north
+        )
+
+        # --------------------------------------------------------
+        # Write temporary mosaic
+        # --------------------------------------------------------
+
+        temp_path = (
+            output_path
+            + ".tmp.tif"
+        )
+
+        profile = first.profile.copy()
+
+        profile.update(
+            driver="GTiff",
+            height=mosaic_height,
+            width=mosaic_width,
+            count=count,
+            dtype="float32",
+            crs=crs,
+            transform=transform,
+            nodata=np.nan,
+            compress="lzw",
+            tiled=True,
+            blockxsize=256,
+            blockysize=256,
+            BIGTIFF="YES"
+        )
+
+        print()
+        print(
+            "Writing merged mosaic..."
+        )
+
+        with rasterio.open(
+            temp_path,
+            "w",
+            **profile
+        ) as dst:
+
+            for band in range(count):
+
+                dst.write(
+                    mosaic[band],
+                    band + 1
+                )
 
         del mosaic
 
         gc.collect()
 
+        # --------------------------------------------------------
+        # Return temporary mosaic
+        # --------------------------------------------------------
+
+        return temp_path
 
     finally:
 
-
         for src in srcs:
 
-            try:
-
-                src.close()
-
-            except Exception:
-
-                pass
-
+            src.close()
 
         gc.collect()
 
