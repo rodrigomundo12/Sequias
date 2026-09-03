@@ -1764,209 +1764,417 @@ print("QUARTERLY COMPOSITE CREATION COMPLETE")
 print("=" * 80)
 
 # ================================================================
-# 15. CROP TO ACTUAL EL SALVADOR POLYGON
+# 15. CROP QUARTERLY COMPOSITES TO EL SALVADOR
 # ================================================================
 
-def crop_raster_to_aoi(
+print()
+print("=" * 80)
+print("CROPPING COMPOSITES TO EL SALVADOR")
+print("=" * 80)
 
-    input_path,
 
-    output_path,
-
-    aoi_gdf
-
-):
-
+def crop_raster_to_aoi(input_path, output_path, aoi_gdf):
 
     print()
+    print("Cropping raster to El Salvador polygon...")
+    print("Input:", os.path.basename(input_path))
 
-    print(
+    # ------------------------------------------------------------
+    # Read AOI geometry
+    # ------------------------------------------------------------
 
-        "Cropping raster to "
-        "El Salvador polygon..."
+    aoi_geom = aoi_gdf.to_crs("EPSG:4326").geometry.unary_union
 
-    )
+    # ------------------------------------------------------------
+    # Open raster
+    # ------------------------------------------------------------
 
+    with rasterio.open(input_path) as src:
 
-    with rasterio.open(
-        input_path
-    ) as src:
+        src_crs = src.crs
 
+        if src_crs is None:
+            raise RuntimeError(
+                "Raster has no CRS: " +
+                str(input_path)
+            )
 
-        aoi_projected = (
-            aoi_gdf.to_crs(
-                src.crs
+        # --------------------------------------------------------
+        # Read raster metadata
+        # --------------------------------------------------------
+
+        width = src.width
+        height = src.height
+        count = src.count
+
+        transform = src.transform
+
+        # Extract affine parameters explicitly.
+        #
+        # We do NOT call:
+        #
+        #     ~transform
+        #
+        # because the installed affine package is incompatible
+        # with this ArcGIS Pro environment.
+        # --------------------------------------------------------
+
+        a = float(transform.a)
+        b = float(transform.b)
+        c = float(transform.c)
+        d = float(transform.d)
+        e = float(transform.e)
+        f = float(transform.f)
+
+        # --------------------------------------------------------
+        # Raster geographic extent
+        # --------------------------------------------------------
+
+        left = c
+        top = f
+
+        right = c + a * width + b * height
+        bottom = f + d * width + e * height
+
+        raster_min_x = min(left, right)
+        raster_max_x = max(left, right)
+
+        raster_min_y = min(bottom, top)
+        raster_max_y = max(bottom, top)
+
+        print(
+            "Raster bounds:",
+            raster_min_x,
+            raster_min_y,
+            raster_max_x,
+            raster_max_y
+        )
+
+        # --------------------------------------------------------
+        # AOI bounds
+        # --------------------------------------------------------
+
+        aoi_min_x, aoi_min_y, aoi_max_x, aoi_max_y = (
+            aoi_geom.bounds
+        )
+
+        print(
+            "AOI bounds:",
+            aoi_min_x,
+            aoi_min_y,
+            aoi_max_x,
+            aoi_max_y
+        )
+
+        # --------------------------------------------------------
+        # Calculate intersection
+        # --------------------------------------------------------
+
+        min_x = max(
+            raster_min_x,
+            aoi_min_x
+        )
+
+        max_x = min(
+            raster_max_x,
+            aoi_max_x
+        )
+
+        min_y = max(
+            raster_min_y,
+            aoi_min_y
+        )
+
+        max_y = min(
+            raster_max_y,
+            aoi_max_y
+        )
+
+        if min_x >= max_x or min_y >= max_y:
+
+            raise RuntimeError(
+                "AOI does not intersect raster."
+            )
+
+        # --------------------------------------------------------
+        # Calculate pixel dimensions
+        # --------------------------------------------------------
+
+        pixel_width = abs(a)
+
+        pixel_height = abs(e)
+
+        if pixel_width == 0 or pixel_height == 0:
+
+            raise RuntimeError(
+                "Invalid raster transform."
+            )
+
+        # --------------------------------------------------------
+        # Convert geographic intersection to pixel window
+        #
+        # This is done manually to avoid rasterio's
+        # geometry_window() and Affine inversion.
+        # --------------------------------------------------------
+
+        col_start = int(
+            np.floor(
+                (min_x - raster_min_x) /
+                pixel_width
             )
         )
 
-
-        geometries = [
-
-            geometry
-
-            for geometry
-            in aoi_projected.geometry
-
-        ]
-
-
-        out_image, out_transform = mask(
-
-            src,
-
-            geometries,
-
-            crop=True,
-
-            nodata=np.nan
-
+        col_end = int(
+            np.ceil(
+                (max_x - raster_min_x) /
+                pixel_width
+            )
         )
 
-
-        out_meta = (
-            src.meta.copy()
+        row_start = int(
+            np.floor(
+                (raster_max_y - max_y) /
+                pixel_height
+            )
         )
 
+        row_end = int(
+            np.ceil(
+                (raster_max_y - min_y) /
+                pixel_height
+            )
+        )
 
-        out_meta.update(
+        # --------------------------------------------------------
+        # Keep window inside raster
+        # --------------------------------------------------------
 
+        col_start = max(
+            0,
+            min(col_start, width)
+        )
+
+        col_end = max(
+            0,
+            min(col_end, width)
+        )
+
+        row_start = max(
+            0,
+            min(row_start, height)
+        )
+
+        row_end = max(
+            0,
+            min(row_end, height)
+        )
+
+        if col_start >= col_end or row_start >= row_end:
+
+            raise RuntimeError(
+                "Calculated crop window is empty."
+            )
+
+        crop_width = col_end - col_start
+        crop_height = row_end - row_start
+
+        print(
+            "Crop size:",
+            crop_width,
+            "x",
+            crop_height
+        )
+
+        # --------------------------------------------------------
+        # Read crop
+        # --------------------------------------------------------
+
+        data = src.read(
+            window=rasterio.windows.Window(
+                col_start,
+                row_start,
+                crop_width,
+                crop_height
+            )
+        ).astype(np.float32)
+
+        # --------------------------------------------------------
+        # Build output transform MANUALLY
+        #
+        # Again, do not use src.window_transform().
+        # --------------------------------------------------------
+
+        new_c = (
+            c +
+            col_start * a +
+            row_start * b
+        )
+
+        new_f = (
+            f +
+            col_start * d +
+            row_start * e
+        )
+
+        new_transform = Affine(
+            a,
+            b,
+            new_c,
+            d,
+            e,
+            new_f
+        )
+
+        # --------------------------------------------------------
+        # Create pixel-center coordinates
+        # --------------------------------------------------------
+
+        cols = (
+            np.arange(crop_width)
+            + 0.5
+        )
+
+        rows = (
+            np.arange(crop_height)
+            + 0.5
+        )
+
+        x_coords = (
+            new_c +
+            cols * a
+        )
+
+        y_coords = (
+            new_f +
+            rows * e
+        )
+
+        # --------------------------------------------------------
+        # Create coordinate mesh
+        # --------------------------------------------------------
+
+        xx, yy = np.meshgrid(
+            x_coords,
+            y_coords
+        )
+
+        # --------------------------------------------------------
+        # Create mask WITHOUT rasterio.mask.mask()
+        #
+        # Shapely performs the point-in-polygon test.
+        # --------------------------------------------------------
+
+        from shapely import contains_xy
+
+        inside = contains_xy(
+            aoi_geom,
+            xx,
+            yy
+        )
+
+        # --------------------------------------------------------
+        # Apply mask
+        #
+        # Everything outside El Salvador becomes NaN.
+        # --------------------------------------------------------
+
+        for band in range(count):
+
+            band_data = data[band]
+
+            band_data[~inside] = np.nan
+
+            data[band] = band_data
+
+        # --------------------------------------------------------
+        # Output metadata
+        # --------------------------------------------------------
+
+        profile = src.profile.copy()
+
+        profile.update(
             driver="GTiff",
-
-            height=
-            out_image.shape[1],
-
-            width=
-            out_image.shape[2],
-
-            transform=
-            out_transform,
-
+            height=crop_height,
+            width=crop_width,
+            count=count,
+            dtype="float32",
+            crs=src_crs,
+            transform=new_transform,
             nodata=np.nan,
-
-            dtype="float32"
-
+            compress="lzw",
+            tiled=True,
+            BIGTIFF="IF_SAFER"
         )
 
+        # --------------------------------------------------------
+        # Write output
+        # --------------------------------------------------------
 
         with rasterio.open(
-
             output_path,
-
             "w",
-
-            **out_meta
-
+            **profile
         ) as dst:
 
-            dst.write(
-
-                out_image.astype(
-                    np.float32
-                )
-
-            )
-
+            dst.write(data)
 
     print(
-        "Raster cropped to "
-        "national polygon"
+        "OK: Cropped composite saved:",
+        os.path.basename(output_path)
     )
 
 
-def cropped_composite_path(
+# ================================================================
+# PROCESS ALL AVAILABLE QUARTERLY COMPOSITES
+# ================================================================
 
-    year,
+for hydro_year in YEARS:
 
-    quarter_name
+    input_path = composite_path(
+        hydro_year,
+        TARGET_QUARTER_NAME
+    )
 
-):
+    output_path = os.path.join(
+        QUARTERLY_DIR,
+        f"composite_{hydro_year}_{TARGET_QUARTER_NAME}_cropped.tif"
+    )
 
-    return os.path.join(
+    if not os.path.exists(input_path):
 
-        CROPPED_QUARTERLY_DIR,
+        print()
+        print(
+            "WARNING: Missing composite:",
+            input_path
+        )
 
-        f"composite_{year}_"
-        f"{quarter_name}_aoi.tif"
+        continue
 
+    # ------------------------------------------------------------
+    # Skip if already cropped
+    # ------------------------------------------------------------
+
+    if os.path.exists(output_path):
+
+        print()
+        print(
+            "OK: Cropped composite already exists:",
+            os.path.basename(output_path)
+        )
+
+        continue
+
+    crop_raster_to_aoi(
+        input_path,
+        output_path,
+        aoi_gdf
     )
 
 
 print()
 print("=" * 80)
-print(
-    "CROPPING COMPOSITES TO EL SALVADOR"
-)
+print("COMPOSITE CROPPING FINISHED")
 print("=" * 80)
-
-
-for hydro_year in YEARS:
-
-
-    source_path = (
-        composite_path(
-            hydro_year,
-            TARGET_QUARTER_NAME
-        )
-    )
-
-
-    if not os.path.exists(
-        source_path
-    ):
-
-        raise RuntimeError(
-
-            f"Missing composite: "
-            f"{source_path}"
-
-        )
-
-
-    output_path = (
-        cropped_composite_path(
-
-            hydro_year,
-
-            TARGET_QUARTER_NAME
-
-        )
-    )
-
-
-    if (
-
-        os.path.exists(output_path)
-
-        and
-
-        os.path.getsize(
-            output_path
-        ) > 0
-
-    ):
-
-        print()
-
-        print(
-
-            f"Existing AOI composite: "
-
-            f"{os.path.basename(output_path)}"
-
-        )
-
-        continue
-
-
-    crop_raster_to_aoi(
-
-        source_path,
-
-        output_path,
-
-        aoi_gdf
-
-    )
 
 
 # ================================================================
