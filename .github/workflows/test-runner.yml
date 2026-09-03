@@ -1,0 +1,98 @@
+name: Test Local Runner
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-runner:
+    runs-on: self-hosted
+
+    steps:
+
+      - name: Show runner information
+        shell: powershell
+        run: |
+          Write-Host "=== RUNNER INFORMATION ==="
+          Write-Host "Computer: $env:COMPUTERNAME"
+          Write-Host "User: $env:USERNAME"
+          Write-Host "Current directory:"
+          Get-Location
+
+      - name: Check target directory
+        shell: powershell
+        run: |
+          $target = "C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos"
+
+          Write-Host "=== CHECKING TARGET DIRECTORY ==="
+          Write-Host $target
+
+          if (Test-Path $target) {
+              Write-Host "SUCCESS: Directory exists."
+          }
+          else {
+              Write-Error "ERROR: Directory does not exist."
+              exit 1
+          }
+
+      - name: Check composite file
+        shell: powershell
+        run: |
+          $file = "C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos\composite_2026_Q1_May_Jul.tif"
+
+          Write-Host "=== CHECKING COMPOSITE ==="
+          Write-Host $file
+
+          if (Test-Path $file) {
+              $info = Get-Item $file
+
+              Write-Host "SUCCESS: File found!"
+              Write-Host "Name: $($info.Name)"
+              Write-Host "Size: $($info.Length) bytes"
+              Write-Host "Modified: $($info.LastWriteTime)"
+          }
+          else {
+              Write-Error "ERROR: composite_2026_Q1_May_Jul.tif was NOT found."
+              exit 1
+          }
+
+      - name: Create hello.txt
+        shell: powershell
+        run: |
+          $output = "C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos\hello.txt"
+
+          Write-Host "=== CREATING HELLO.TXT ==="
+
+          "Hello from GitHub Actions self-hosted runner!" | Out-File `
+              -FilePath $output `
+              -Encoding utf8
+
+          if (Test-Path $output) {
+              Write-Host "SUCCESS: hello.txt was created."
+          }
+          else {
+              Write-Error "ERROR: Could not create hello.txt."
+              exit 1
+          }
+
+      - name: Read hello.txt
+        shell: powershell
+        run: |
+          $output = "C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos\hello.txt"
+
+          Write-Host "=== READING HELLO.TXT ==="
+
+          $content = Get-Content $output -Raw
+
+          Write-Host "Content:"
+          Write-Host $content
+
+      - name: List target directory
+        shell: powershell
+        run: |
+          $target = "C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos"
+
+          Write-Host "=== FINAL DIRECTORY CONTENTS ==="
+
+          Get-ChildItem $target |
+              Select-Object Name, Length, LastWriteTime |
+              Format-Table -AutoSize

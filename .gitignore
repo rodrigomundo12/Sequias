@@ -1,0 +1,20 @@
+# Large raster files
+*.tif
+*.tiff
+
+# GeoPackages
+*.gpkg
+
+# Jupyter temporary files
+.ipynb_checkpoints/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# GitHub Actions runner
+actions-runner/
+
+# Git installer / local installation
+Git/
+*.exe
