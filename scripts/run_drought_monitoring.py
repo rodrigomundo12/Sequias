@@ -2765,7 +2765,7 @@ for hydro_year in available_years:
 
 
 # ================================================================
-# 19. 5-CLASS POLYGONIZATION
+# 19. FAST 5-CLASS POLYGONIZATION
 # ================================================================
 
 LOWER_PERCENTILE = 2
@@ -2773,482 +2773,314 @@ UPPER_PERCENTILE = 98
 
 N_CLASSES = 5
 
-
 CLASS_NAMES = {
-
     1: "Very Low",
-
     2: "Low",
-
     3: "Normal",
-
     4: "High",
-
     5: "Very High"
-
 }
-
 
 PERCENTILE_SAMPLE_SIZE = 2_000_000
 
-WRITE_BATCH_SIZE = 2000
-
+# Minimum polygon area in square meters
 MIN_POLYGON_AREA_M2 = 14400
 
-SIMPLIFY_TOLERANCE = 0.0001
+# Simplification tolerance in meters
+SIMPLIFY_TOLERANCE_M = 20
 
-PRESERVE_TOPOLOGY = True
+# Metric CRS for El Salvador
+METRIC_CRS = "EPSG:32616"
 
-
-def manual_window_transform(
-
-    transform,
-
-    window
-
-):
+# Process large windows instead of tiny raster blocks
+POLYGONIZE_WINDOW_SIZE = 1024
 
 
-    a = float(
-        transform.a
-    )
+# ================================================================
+# MANUAL WINDOW TRANSFORM
+# ================================================================
 
-    b = float(
-        transform.b
-    )
+def manual_window_transform(transform, window):
 
-    c = float(
-        transform.c
-    )
+    a = float(transform.a)
+    b = float(transform.b)
+    c = float(transform.c)
+    d = float(transform.d)
+    e = float(transform.e)
+    f = float(transform.f)
 
-    d = float(
-        transform.d
-    )
-
-    e = float(
-        transform.e
-    )
-
-    f = float(
-        transform.f
-    )
-
-
-    col_off = float(
-        window.col_off
-    )
-
-    row_off = float(
-        window.row_off
-    )
-
+    col_off = float(window.col_off)
+    row_off = float(window.row_off)
 
     new_c = (
-
         c
-
-        +
-
-        col_off * a
-
-        +
-
-        row_off * b
-
+        + col_off * a
+        + row_off * b
     )
-
 
     new_f = (
-
         f
-
-        +
-
-        col_off * d
-
-        +
-
-        row_off * e
-
+        + col_off * d
+        + row_off * e
     )
 
-
     return Affine(
-
         a,
         b,
         new_c,
         d,
         e,
         new_f
-
     )
 
+
+# ================================================================
+# PERCENTILE SAMPLE
+# ================================================================
 
 def get_percentile_sample(
-
     raster_path,
-
     band_idx,
-
     max_sample=PERCENTILE_SAMPLE_SIZE
-
 ):
 
-
-    rng = np.random.default_rng(
-        42
-    )
-
+    rng = np.random.default_rng(42)
 
     sample = np.empty(
-
         0,
-
         dtype=np.float32
-
     )
 
+    with rasterio.open(raster_path) as src:
 
-    with rasterio.open(
-
-        raster_path
-
-    ) as src:
-
-
-        for _, window in src.block_windows(
-
-            band_idx
-
-        ):
-
+        for _, window in src.block_windows(band_idx):
 
             data = (
-
                 src.read(
-
                     band_idx,
-
                     window=window,
-
                     masked=True
-
                 )
-
                 .filled(np.nan)
-
             )
 
-
-            values = (
-
-                data[
-                    np.isfinite(data)
-                ]
-
-                .astype(
-                    np.float32
-                )
-
-            )
-
+            values = data[
+                np.isfinite(data)
+            ].astype(np.float32)
 
             if values.size == 0:
-
                 continue
 
-
             remaining = (
-
                 max_sample
-
-                -
-
-                sample.size
-
+                - sample.size
             )
-
 
             if remaining <= 0:
 
-                candidate = values[
-
-                    rng.integers(
-
-                        0,
-
-                        values.size,
-
-                        size=min(
-
-                            values.size,
-
-                            10000
-
-                        )
-
-                    )
-
-                ]
-
-
-                replace_count = min(
-
-                    candidate.size,
-
-                    sample.size
-
+                # Reservoir-style replacement
+                candidate_count = min(
+                    values.size,
+                    10000
                 )
 
+                candidate = values[
+                    rng.integers(
+                        0,
+                        values.size,
+                        size=candidate_count
+                    )
+                ]
+
+                replace_count = min(
+                    candidate.size,
+                    sample.size
+                )
 
                 if replace_count > 0:
 
-
                     positions = rng.integers(
-
                         0,
-
                         sample.size,
-
                         size=replace_count
-
                     )
 
-
                     sample[
-
                         positions
-
                     ] = candidate[
-
                         :replace_count
-
                     ]
 
-
                 continue
-
 
             if values.size <= remaining:
 
                 sample = np.concatenate(
-
                     [
-
                         sample,
-
                         values
-
                     ]
-
                 )
 
             else:
 
                 chosen = rng.choice(
-
                     values,
-
                     size=remaining,
-
                     replace=False
-
                 )
-
 
                 sample = np.concatenate(
-
                     [
-
                         sample,
-
                         chosen
-
                     ]
-
                 )
-
 
             del data
             del values
 
-
     return sample
 
 
+# ================================================================
+# CLASSIFY DATA
+# ================================================================
+
 def classify_block(
-
     data,
-
     p2,
-
     p98
-
 ):
 
-
     result = np.zeros(
-
         data.shape,
-
         dtype=np.uint8
-
     )
-
 
     valid = (
-
         np.isfinite(data)
-
         &
-
         (data >= p2)
-
         &
-
         (data <= p98)
-
     )
-
 
     if not np.any(valid):
-
         return result
 
-
-    internal_edges = np.linspace(
-
+    edges = np.linspace(
         p2,
-
         p98,
-
         N_CLASSES + 1,
-
         dtype=np.float32
-
-    )[1:-1]
-
-
-    result[valid] = (
-
-        np.digitize(
-
-            data[valid],
-
-            internal_edges,
-
-            right=False
-
-        )
-
-        +
-
-        1
-
-    ).astype(
-        np.uint8
     )
 
+    internal_edges = edges[1:-1]
+
+    result[valid] = (
+        np.digitize(
+            data[valid],
+            internal_edges,
+            right=False
+        )
+        + 1
+    ).astype(np.uint8)
 
     return result
 
 
-latest_year = max(
-    available_years
-)
+# ================================================================
+# CREATE LARGE WINDOWS
+# ================================================================
 
-
-latest_anomaly_path = (
-    anomaly_path(
-
-        latest_year,
-
-        TARGET_QUARTER_NAME
-
-    )
-)
-
-
-print()
-print("=" * 80)
-print(
-
-    f"POLYGONIZING "
-    f"{latest_year} "
-    f"{TARGET_QUARTER_NAME}"
-
-)
-
-print("=" * 80)
-
-
-polygonized_outputs = []
-
-
-for band_idx, index_name in enumerate(
-
-    INDEX_NAMES,
-
-    start=1
-
+def generate_windows(
+    width,
+    height,
+    window_size=POLYGONIZE_WINDOW_SIZE
 ):
 
+    for row_start in range(
+        0,
+        height,
+        window_size
+    ):
+
+        row_height = min(
+            window_size,
+            height - row_start
+        )
+
+        for col_start in range(
+            0,
+            width,
+            window_size
+        ):
+
+            col_width = min(
+                window_size,
+                width - col_start
+            )
+
+            yield Window(
+                col_start,
+                row_start,
+                col_width,
+                row_height
+            )
+
+
+# ================================================================
+# POLYGONIZE ONE INDEX
+# ================================================================
+
+def polygonize_index(
+    raster_path,
+    band_idx,
+    index_name,
+    output_path
+):
 
     print()
     print("-" * 70)
-
     print(
         f"INDEX: {index_name}"
     )
-
     print("-" * 70)
 
+    # ------------------------------------------------------------
+    # 1. Percentiles
+    # ------------------------------------------------------------
 
-    sample = get_percentile_sample(
-
-        latest_anomaly_path,
-
-        band_idx
-
+    print(
+        "Calculating percentile sample..."
     )
 
+    sample = get_percentile_sample(
+        raster_path,
+        band_idx
+    )
 
     if sample.size == 0:
 
         raise RuntimeError(
-
             f"No finite anomaly values "
             f"for {index_name}"
-
         )
-
 
     p2 = float(
-
         np.percentile(
-
             sample,
-
             LOWER_PERCENTILE
-
         )
-
     )
-
 
     p98 = float(
-
         np.percentile(
-
             sample,
-
             UPPER_PERCENTILE
-
         )
-
     )
-
 
     print(
         f"P2:  {p2:.6f}"
@@ -3258,26 +3090,330 @@ for band_idx, index_name in enumerate(
         f"P98: {p98:.6f}"
     )
 
+    del sample
+    gc.collect()
 
-    output_name = (
+    # ------------------------------------------------------------
+    # 2. Polygonize classified integer raster
+    # ------------------------------------------------------------
 
-        f"anomaly_{latest_year}_"
+    all_features = []
 
-        f"{TARGET_QUARTER_NAME}_"
+    with rasterio.open(
+        raster_path
+    ) as src:
 
-        f"{index_name}_classified.gpkg"
+        width = src.width
+        height = src.height
+        transform = src.transform
+        source_crs = src.crs
 
+        windows = list(
+            generate_windows(
+                width,
+                height,
+                POLYGONIZE_WINDOW_SIZE
+            )
+        )
+
+        print(
+            f"Raster size: "
+            f"{width} x {height}"
+        )
+
+        print(
+            f"Polygonization windows: "
+            f"{len(windows)}"
+        )
+
+        for window_number, window in enumerate(
+            tqdm(
+                windows,
+                desc=f"Polygonizing {index_name}"
+            ),
+            start=1
+        ):
+
+            data = (
+                src.read(
+                    band_idx,
+                    window=window,
+                    masked=True
+                )
+                .filled(np.nan)
+                .astype(np.float32)
+            )
+
+            classified = classify_block(
+                data,
+                p2,
+                p98
+            )
+
+            if not np.any(classified > 0):
+
+                del data
+                del classified
+
+                continue
+
+            block_transform = (
+                manual_window_transform(
+                    transform,
+                    window
+                )
+            )
+
+            # ----------------------------------------------------
+            # Polygonize ONLY the 5 integer classes
+            # ----------------------------------------------------
+
+            for geom, value in shapes(
+                classified,
+                mask=(classified > 0),
+                transform=block_transform
+            ):
+
+                class_id = int(value)
+
+                if class_id < 1:
+                    continue
+
+                # Do NOT create GeoSeries here.
+                # Store raw geometry first.
+                all_features.append(
+                    {
+                        "geometry": shape(geom),
+                        "class_id": class_id
+                    }
+                )
+
+            del data
+            del classified
+
+            if window_number % 20 == 0:
+                gc.collect()
+
+    print()
+    print(
+        f"Raw polygons generated: "
+        f"{len(all_features):,}"
     )
 
+    if len(all_features) == 0:
 
-    output_path = os.path.join(
+        raise RuntimeError(
+            f"No polygons generated "
+            f"for {index_name}"
+        )
 
-        POLYGON_DIR,
+    # ------------------------------------------------------------
+    # 3. Create GeoDataFrame ONCE
+    # ------------------------------------------------------------
 
-        output_name
-
+    print(
+        "Creating GeoDataFrame..."
     )
 
+    gdf = gpd.GeoDataFrame(
+        all_features,
+        geometry="geometry",
+        crs=source_crs
+    )
+
+    del all_features
+    gc.collect()
+
+    # ------------------------------------------------------------
+    # 4. Remove empty geometries
+    # ------------------------------------------------------------
+
+    gdf = gdf[
+        gdf.geometry.notna()
+        &
+        (~gdf.geometry.is_empty)
+    ].copy()
+
+    print(
+        f"Valid polygons: "
+        f"{len(gdf):,}"
+    )
+
+    # ------------------------------------------------------------
+    # 5. Project EVERYTHING once
+    # ------------------------------------------------------------
+
+    print(
+        f"Projecting to {METRIC_CRS}..."
+    )
+
+    gdf = gdf.to_crs(
+        METRIC_CRS
+    )
+
+    # ------------------------------------------------------------
+    # 6. Dissolve by class
+    #
+    # This is the key optimization.
+    # Thousands of adjacent polygons belonging to the same
+    # class become a much smaller number of geometries.
+    # ------------------------------------------------------------
+
+    print(
+        "Dissolving polygons by class..."
+    )
+
+    dissolved = (
+        gdf
+        .dissolve(
+            by="class_id",
+            as_index=False,
+            aggfunc="first"
+        )
+    )
+
+    del gdf
+    gc.collect()
+
+    print(
+        f"Dissolved class geometries: "
+        f"{len(dissolved):,}"
+    )
+
+    # ------------------------------------------------------------
+    # 7. Explode multipart geometries
+    # ------------------------------------------------------------
+
+    print(
+        "Exploding multipart geometries..."
+    )
+
+    dissolved = dissolved.explode(
+        index_parts=False
+    ).reset_index(
+        drop=True
+    )
+
+    print(
+        f"After explode: "
+        f"{len(dissolved):,}"
+    )
+
+    # ------------------------------------------------------------
+    # 8. Calculate area and remove small polygons
+    # ------------------------------------------------------------
+
+    dissolved["area_m2"] = (
+        dissolved.geometry.area
+    )
+
+    dissolved = dissolved[
+        dissolved["area_m2"]
+        >= MIN_POLYGON_AREA_M2
+    ].copy()
+
+    print(
+        f"After minimum-area filter: "
+        f"{len(dissolved):,}"
+    )
+
+    if len(dissolved) == 0:
+
+        raise RuntimeError(
+            f"No polygons remain after "
+            f"area filtering for {index_name}"
+        )
+
+    # ------------------------------------------------------------
+    # 9. Simplify IN METERS
+    # ------------------------------------------------------------
+
+    if SIMPLIFY_TOLERANCE_M > 0:
+
+        print(
+            f"Simplifying geometries "
+            f"({SIMPLIFY_TOLERANCE_M} m)..."
+        )
+
+        dissolved["geometry"] = (
+            dissolved.geometry.simplify(
+                SIMPLIFY_TOLERANCE_M,
+                preserve_topology=True
+            )
+        )
+
+    # ------------------------------------------------------------
+    # 10. Add class attributes
+    # ------------------------------------------------------------
+
+    edges = np.linspace(
+        p2,
+        p98,
+        N_CLASSES + 1
+    )
+
+    dissolved["class_name"] = (
+        dissolved["class_id"]
+        .map(CLASS_NAMES)
+    )
+
+    dissolved["min_value"] = (
+        dissolved["class_id"]
+        .map(
+            {
+                i + 1: float(edges[i])
+                for i in range(N_CLASSES)
+            }
+        )
+    )
+
+    dissolved["max_value"] = (
+        dissolved["class_id"]
+        .map(
+            {
+                i + 1: float(edges[i + 1])
+                for i in range(N_CLASSES)
+            }
+        )
+    )
+
+    dissolved["index"] = index_name
+
+    # ------------------------------------------------------------
+    # 11. Return to geographic CRS
+    # ------------------------------------------------------------
+
+    print(
+        "Converting to EPSG:4326..."
+    )
+
+    dissolved = dissolved.to_crs(
+        "EPSG:4326"
+    )
+
+    # ------------------------------------------------------------
+    # 12. Final columns
+    # ------------------------------------------------------------
+
+    dissolved = dissolved[
+        [
+            "class_id",
+            "class_name",
+            "min_value",
+            "max_value",
+            "area_m2",
+            "index",
+            "geometry"
+        ]
+    ]
+
+    # ------------------------------------------------------------
+    # 13. Save GeoPackage
+    # ------------------------------------------------------------
+
+    print(
+        "Writing GeoPackage..."
+    )
 
     if os.path.exists(
         output_path
@@ -3287,297 +3423,118 @@ for band_idx, index_name in enumerate(
             output_path
         )
 
-
-    schema = {
-
-        "geometry": "Polygon",
-
-        "properties": {
-
-            "class_id": "int",
-
-            "class_name": "str",
-
-            "min_value": "float",
-
-            "max_value": "float",
-
-            "index": "str"
-
-        }
-
-    }
-
-
-    with rasterio.open(
-
-        latest_anomaly_path
-
-    ) as src:
-
-
-        transform = src.transform
-
-        crs = src.crs
-
-
-        with fiona.open(
-
-            output_path,
-
-            "w",
-
-            driver="GPKG",
-
-            layer="polygons",
-
-            schema=schema,
-
-            crs=crs.to_string()
-
-        ) as dst:
-
-
-            batch = []
-
-
-            for block_number, (_, window) in enumerate(
-
-                tqdm(
-
-                    src.block_windows(
-                        band_idx
-                    ),
-
-                    desc=
-                    f"Polygonizing {index_name}"
-
-                )
-
-            ):
-
-
-                data = (
-
-                    src.read(
-
-                        band_idx,
-
-                        window=window,
-
-                        masked=True
-
-                    )
-
-                    .filled(np.nan)
-
-                )
-
-
-                classified = classify_block(
-
-                    data,
-
-                    p2,
-
-                    p98
-
-                )
-
-
-                block_transform = (
-
-                    manual_window_transform(
-
-                        transform,
-
-                        window
-
-                    )
-
-                )
-
-
-                for geom, value in shapes(
-
-                    classified,
-
-                    mask=(
-                        classified > 0
-                    ),
-
-                    transform=block_transform
-
-                ):
-
-
-                    class_id = int(
-                        value
-                    )
-
-
-                    if class_id < 1:
-
-                        continue
-
-
-                    polygon = shape(
-                        geom
-                    )
-
-
-                    if polygon.is_empty:
-
-                        continue
-
-
-                    if not polygon.is_valid:
-
-                        polygon = (
-                            polygon.buffer(0)
-                        )
-
-
-                    if polygon.is_empty:
-
-                        continue
-
-
-                    # ------------------------------------------------
-                    # Area filtering
-                    # ------------------------------------------------
-
-                    polygon_projected = (
-
-                        gpd.GeoSeries(
-
-                            [polygon],
-
-                            crs=crs
-
-                        )
-
-                        .to_crs(
-
-                            "EPSG:32616"
-
-                        )
-
-                    )
-
-
-                    area_m2 = float(
-
-                        polygon_projected.area.iloc[0]
-
-                    )
-
-
-                    if (
-
-                        area_m2
-                        <
-                        MIN_POLYGON_AREA_M2
-
-                    ):
-
-                        continue
-
-
-                    if SIMPLIFY_TOLERANCE > 0:
-
-                        polygon = polygon.simplify(
-
-                            SIMPLIFY_TOLERANCE,
-
-                            preserve_topology=
-                            PRESERVE_TOPOLOGY
-
-                        )
-
-
-                    batch.append({
-
-                        "geometry":
-                            mapping(
-                                polygon
-                            ),
-
-                        "properties": {
-
-                            "class_id":
-                                class_id,
-
-                            "class_name":
-                                CLASS_NAMES[
-                                    class_id
-                                ],
-
-                            "min_value":
-                                p2,
-
-                            "max_value":
-                                p98,
-
-                            "index":
-                                index_name
-
-                        }
-
-                    })
-
-
-                    if (
-
-                        len(batch)
-                        >=
-                        WRITE_BATCH_SIZE
-
-                    ):
-
-                        for feature in batch:
-
-                            dst.write(
-                                feature
-                            )
-
-                        batch.clear()
-
-
-                del data
-
-                del classified
-
-
-                if block_number % 50 == 0:
-
-                    gc.collect()
-
-
-            for feature in batch:
-
-                dst.write(
-                    feature
-                )
-
+    dissolved.to_file(
+        output_path,
+        layer="polygons",
+        driver="GPKG"
+    )
+
+    print(
+        f"Saved: {output_path}"
+    )
+
+    print(
+        f"Final polygons: "
+        f"{len(dissolved):,}"
+    )
+
+    # ------------------------------------------------------------
+    # 14. Class summary
+    # ------------------------------------------------------------
+
+    print()
+    print(
+        "Class summary:"
+    )
+
+    for class_id in range(
+        1,
+        N_CLASSES + 1
+    ):
+
+        count = int(
+            (
+                dissolved["class_id"]
+                == class_id
+            ).sum()
+        )
+
+        print(
+            f"  {class_id} - "
+            f"{CLASS_NAMES[class_id]}: "
+            f"{count:,} polygons"
+        )
+
+    del dissolved
+    gc.collect()
+
+
+# ================================================================
+# RUN POLYGONIZATION
+# ================================================================
+
+latest_year = max(
+    available_years
+)
+
+latest_anomaly_path = (
+    anomaly_path(
+        latest_year,
+        TARGET_QUARTER_NAME
+    )
+)
+
+print()
+print("=" * 80)
+print(
+    f"POLYGONIZING "
+    f"{latest_year} "
+    f"{TARGET_QUARTER_NAME}"
+)
+print("=" * 80)
+
+polygonized_outputs = []
+
+for band_idx, index_name in enumerate(
+    INDEX_NAMES,
+    start=1
+):
+
+    output_name = (
+        f"anomaly_{latest_year}_"
+        f"{TARGET_QUARTER_NAME}_"
+        f"{index_name}_classified.gpkg"
+    )
+
+    output_path = os.path.join(
+        POLYGON_DIR,
+        output_name
+    )
+
+    polygonize_index(
+        latest_anomaly_path,
+        band_idx,
+        index_name,
+        output_path
+    )
 
     polygonized_outputs.append(
         output_path
     )
 
-
-    del sample
-
     gc.collect()
 
 
-    print()
+print()
+print("=" * 80)
+print("POLYGONIZATION FINISHED")
+print("=" * 80)
+
+for path in polygonized_outputs:
 
     print(
-        f"Saved: "
-        f"{output_path}"
+        f"Output: {path}"
     )
-
 
 # ================================================================
 # 20. WEB OPTIMIZATION
