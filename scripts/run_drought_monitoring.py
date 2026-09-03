@@ -835,132 +835,67 @@ def get_month_dates(
 # 12. SENTINEL HUB TILE REQUEST
 # ================================================================
 
-def request_tile(
-    tile,
-    start,
-    end
-):
+def request_tile(tile, start, end):
 
     global cred_idx
 
     attempted = 0
 
+    while attempted < len(CREDENTIALS):
 
-    while attempted < len(
-        CREDENTIALS
-    ):
-
-        current_cred = (
-            cred_idx
-        )
-
+        current_cred = cred_idx
 
         try:
 
             print(
-                f"\nUsing Sentinel Hub "
-                f"credential "
-                f"{current_cred + 1}/"
-                f"{len(CREDENTIALS)}"
+                f"\nUsing Sentinel Hub credential "
+                f"{current_cred + 1}/{len(CREDENTIALS)}"
             )
 
-
-            config = get_config(
-                current_cred
-            )
-
+            config = get_config(current_cred)
 
             request = SentinelHubRequest(
-
                 evalscript=evalscript,
-
                 input_data=[
-
                     SentinelHubRequest.input_data(
-
-                        data_collection=
-                        DataCollection.SENTINEL2_L2A,
-
-                        time_interval=(
-
-                            start,
-
-                            end
-
-                        )
-
+                        data_collection=DataCollection.SENTINEL2_L2A,
+                        time_interval=(start, end)
                     )
-
                 ],
-
                 responses=[
-
                     SentinelHubRequest.output_response(
-
                         "bands",
-
                         MimeType.TIFF
-
                     )
-
                 ],
-
                 bbox=tile,
-
-                size=(
-
-                    tile_px,
-
-                    tile_px
-
-                ),
-
+                size=(tile_px, tile_px),
                 config=config
-
             )
 
-
-            data = (
-                request.get_data()[0]
-            )
-
+            data = request.get_data()[0]
 
             return data
 
-
         except Exception as e:
 
-
             print()
-
             print(
-                f"Credential "
-                f"{current_cred + 1} failed."
+                f"Credential {current_cred + 1} failed."
             )
-
             print(
                 str(e)[:500]
             )
 
-
             cred_idx = (
-
                 cred_idx + 1
-
-            ) % len(
-                CREDENTIALS
-            )
-
+            ) % len(CREDENTIALS)
 
             attempted += 1
 
-
     raise RuntimeError(
-
         "All Sentinel Hub credentials failed."
-
     )
-
 
 # ================================================================
 # 13. DOWNLOAD MONTHLY DATA / CREATE QUARTERLY TILES
