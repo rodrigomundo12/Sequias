@@ -1685,7 +1685,7 @@ for hydro_year in YEARS:
 
         print()
         print(
-            "✓ Existing composite found:"
+            "Existing composite found:"
         )
 
         print(
@@ -1724,7 +1724,7 @@ for hydro_year in YEARS:
 
         print()
         print(
-            f"✓ Composite created:"
+            f"Composite created:"
         )
 
         print(
@@ -1868,7 +1868,7 @@ def crop_raster_to_aoi(
 
 
     print(
-        "✓ Raster cropped to "
+        "Raster cropped to "
         "national polygon"
     )
 
@@ -1949,7 +1949,7 @@ for hydro_year in YEARS:
 
         print(
 
-            f"✓ Existing AOI composite: "
+            f"Existing AOI composite: "
 
             f"{os.path.basename(output_path)}"
 
@@ -2003,14 +2003,14 @@ for hydro_year in YEARS:
         )
 
         print(
-            f"✓ Found: "
+            f"Found: "
             f"{os.path.basename(path)}"
         )
 
     else:
 
         print(
-            f"✗ Missing: "
+            f"Missing: "
             f"{os.path.basename(path)}"
         )
 
@@ -2414,7 +2414,7 @@ gc.collect()
 
 print()
 print(
-    "✓ Anomaly calculation finished"
+    "Anomaly calculation finished"
 )
 
 
@@ -3351,7 +3351,7 @@ for band_idx, index_name in enumerate(
     print()
 
     print(
-        f"✓ Saved: "
+        f"Saved: "
         f"{output_path}"
     )
 
@@ -3642,7 +3642,7 @@ for gpkg_path in polygonized_outputs:
 
 
     print(
-        f"✓ GeoJSON: "
+        f"GeoJSON: "
         f"{geojson_path}"
     )
 
@@ -3679,7 +3679,7 @@ for gpkg_path in polygonized_outputs:
 
 
     print(
-        f"✓ Gzip: "
+        f"Gzip: "
         f"{gzip_path}"
     )
 
@@ -3734,7 +3734,7 @@ for geojson_path in web_outputs:
 
 
     print(
-        f"✓ Latest vector: "
+        f"Latest vector: "
         f"{destination}"
     )
 
@@ -3785,7 +3785,7 @@ for hydro_year in available_years:
 
         print(
 
-            f"✓ Latest anomaly raster: "
+            f"Latest anomaly raster: "
             f"{destination}"
 
         )
