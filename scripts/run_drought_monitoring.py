@@ -926,23 +926,12 @@ for hydro_year in YEARS:
 
         print()
 
-        print(
-
-            f"✓ Existing composite found: "
-
-            f"{os.path.basename(
-
-                composite_path(
-
-                    hydro_year,
-
-                    TARGET_QUARTER_NAME
-
-                )
-
-            )}"
-
-        )
+	composite_filename = os.path.basename(
+	    composite_path(
+	     	hydro_year,
+	        TARGET_QUARTER_NAME
+	    )
+	)
 
         print(
 
