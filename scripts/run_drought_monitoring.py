@@ -1188,8 +1188,8 @@ def merge_tiles_manual(
     Merge regularly arranged EPSG:4326 tiles without using
     rasterio.merge.merge().
 
-    This avoids an Affine/rasterio compatibility problem in the
-    ArcGIS Pro Python environment.
+    This avoids the Affine/rasterio compatibility problem found
+    in the ArcGIS Pro Python environment.
     """
 
     if not tile_files:
@@ -1197,6 +1197,7 @@ def merge_tiles_manual(
             "No tile files were provided for merging."
         )
 
+    print()
     print(
         f"Merging {len(tile_files)} tiles"
     )
@@ -1205,12 +1206,15 @@ def merge_tiles_manual(
     # Open all tiles
     # ------------------------------------------------------------
 
-    srcs = [
-        rasterio.open(path)
-        for path in tile_files
-    ]
+    srcs = []
 
     try:
+
+        for path in tile_files:
+
+            srcs.append(
+                rasterio.open(path)
+            )
 
         # --------------------------------------------------------
         # Validate common properties
@@ -1224,6 +1228,7 @@ def merge_tiles_manual(
         crs = first.crs
 
         if count != 5:
+
             raise RuntimeError(
                 f"Expected 5 bands, found {count}."
             )
@@ -1231,21 +1236,25 @@ def merge_tiles_manual(
         for src in srcs:
 
             if src.width != width:
+
                 raise RuntimeError(
                     "Tile widths are inconsistent."
                 )
 
             if src.height != height:
+
                 raise RuntimeError(
                     "Tile heights are inconsistent."
                 )
 
             if src.count != count:
+
                 raise RuntimeError(
                     "Tile band counts are inconsistent."
                 )
 
             if src.crs != crs:
+
                 raise RuntimeError(
                     "Tile CRS values are inconsistent."
                 )
@@ -1283,6 +1292,46 @@ def merge_tiles_manual(
             tile_info[0]["top"]
             - tile_info[0]["bottom"]
         ) / height
+
+        # --------------------------------------------------------
+        # Check that all tiles have the same resolution
+        # --------------------------------------------------------
+
+        tolerance = 1e-10
+
+        for item in tile_info:
+
+            current_pixel_width = (
+                item["right"]
+                - item["left"]
+            ) / width
+
+            current_pixel_height = (
+                item["top"]
+                - item["bottom"]
+            ) / height
+
+            if (
+                abs(
+                    current_pixel_width
+                    - pixel_width
+                ) > tolerance
+            ):
+
+                raise RuntimeError(
+                    "Tile pixel widths are inconsistent."
+                )
+
+            if (
+                abs(
+                    current_pixel_height
+                    - pixel_height
+                ) > tolerance
+            ):
+
+                raise RuntimeError(
+                    "Tile pixel heights are inconsistent."
+                )
 
         # --------------------------------------------------------
         # Determine total mosaic extent
@@ -1373,6 +1422,14 @@ def merge_tiles_manual(
             )
 
             # ----------------------------------------------------
+            # Replace non-finite values with NaN
+            # ----------------------------------------------------
+
+            data[
+                ~np.isfinite(data)
+            ] = np.nan
+
+            # ----------------------------------------------------
             # Calculate destination position
             # ----------------------------------------------------
 
@@ -1411,29 +1468,31 @@ def merge_tiles_manual(
             # ----------------------------------------------------
 
             if row_offset < 0:
+
                 raise RuntimeError(
                     "Calculated negative row offset."
                 )
 
             if col_offset < 0:
+
                 raise RuntimeError(
                     "Calculated negative column offset."
                 )
 
             if row_end > mosaic_height:
+
                 raise RuntimeError(
-                    "Tile extends beyond mosaic "
-                    "height."
+                    "Tile extends beyond mosaic height."
                 )
 
             if col_end > mosaic_width:
+
                 raise RuntimeError(
-                    "Tile extends beyond mosaic "
-                    "width."
+                    "Tile extends beyond mosaic width."
                 )
 
             # ----------------------------------------------------
-            # Write tile
+            # Write tile into mosaic
             # ----------------------------------------------------
 
             mosaic[
@@ -1460,13 +1519,17 @@ def merge_tiles_manual(
         )
 
         # --------------------------------------------------------
-        # Write temporary mosaic
+        # Temporary mosaic
         # --------------------------------------------------------
 
         temp_path = (
             output_path
             + ".tmp.tif"
         )
+
+        # --------------------------------------------------------
+        # Prepare output profile
+        # --------------------------------------------------------
 
         profile = first.profile.copy()
 
@@ -1491,6 +1554,10 @@ def merge_tiles_manual(
             "Writing merged mosaic..."
         )
 
+        # --------------------------------------------------------
+        # Write temporary mosaic
+        # --------------------------------------------------------
+
         with rasterio.open(
             temp_path,
             "w",
@@ -1508,20 +1575,193 @@ def merge_tiles_manual(
 
         gc.collect()
 
-        # --------------------------------------------------------
-        # Return temporary mosaic
-        # --------------------------------------------------------
+        print(
+            f"Temporary mosaic created:"
+            f" {os.path.basename(temp_path)}"
+        )
 
         return temp_path
 
     finally:
 
+        # --------------------------------------------------------
+        # Close all source files
+        # --------------------------------------------------------
+
         for src in srcs:
 
-            src.close()
+            try:
+                src.close()
+            except Exception:
+                pass
 
         gc.collect()
 
+
+# ================================================================
+# CREATE THE NATIONAL QUARTERLY COMPOSITES
+# ================================================================
+
+print()
+print(
+    "Searching for quarterly tiles..."
+)
+
+
+for hydro_year in YEARS:
+
+    quarter_name = TARGET_QUARTER_NAME
+
+    # ------------------------------------------------------------
+    # Find tiles belonging to this hydro year and quarter
+    # ------------------------------------------------------------
+
+    tile_files = sorted(
+        [
+            os.path.join(
+                QUARTERLY_TILE_DIR,
+                filename
+            )
+
+            for filename in os.listdir(
+                QUARTERLY_TILE_DIR
+            )
+
+            if (
+                filename.startswith(
+                    f"{quarter_name}_{hydro_year}_"
+                )
+                and filename.endswith(".tif")
+                and "tmp" not in filename
+            )
+        ]
+    )
+
+    # ------------------------------------------------------------
+    # Check tile availability
+    # ------------------------------------------------------------
+
+    if not tile_files:
+
+        print()
+        print(
+            f"WARNING: No quarterly tiles found "
+            f"for {hydro_year}."
+        )
+
+        continue
+
+    print()
+    print("=" * 70)
+
+    print(
+        f"HYDROLOGICAL YEAR: {hydro_year}"
+    )
+
+    print(
+        f"QUARTER: {quarter_name}"
+    )
+
+    print(
+        f"TILES FOUND: {len(tile_files)}"
+    )
+
+    print("=" * 70)
+
+    # ------------------------------------------------------------
+    # Expected national composite
+    # ------------------------------------------------------------
+
+    output_path = composite_path(
+        hydro_year,
+        quarter_name
+    )
+
+    # ------------------------------------------------------------
+    # If composite already exists, don't merge again
+    # ------------------------------------------------------------
+
+    if os.path.exists(output_path):
+
+        print()
+        print(
+            "✓ Existing composite found:"
+        )
+
+        print(
+            f"  {os.path.basename(output_path)}"
+        )
+
+        continue
+
+    # ------------------------------------------------------------
+    # Merge tiles
+    # ------------------------------------------------------------
+
+    temp_mosaic = None
+
+    try:
+
+        temp_mosaic = merge_tiles_manual(
+            tile_files,
+            output_path
+        )
+
+        # --------------------------------------------------------
+        # Crop/mask to El Salvador
+        # --------------------------------------------------------
+
+        print()
+        print(
+            "Masking composite to El Salvador boundary..."
+        )
+
+        crop_raster_to_aoi(
+            temp_mosaic,
+            output_path,
+            aoi_gdf
+        )
+
+        print()
+        print(
+            f"✓ Composite created:"
+        )
+
+        print(
+            f"  {output_path}"
+        )
+
+    finally:
+
+        # --------------------------------------------------------
+        # Remove temporary mosaic
+        # --------------------------------------------------------
+
+        if (
+            temp_mosaic is not None
+            and os.path.exists(temp_mosaic)
+        ):
+
+            try:
+
+                os.remove(
+                    temp_mosaic
+                )
+
+            except Exception as e:
+
+                print(
+                    f"Warning: could not remove "
+                    f"temporary file: {e}"
+                )
+
+        gc.collect()
+
+
+print()
+print("=" * 80)
+print("QUARTERLY COMPOSITE CREATION COMPLETE")
+print("=" * 80)
 
 # ================================================================
 # 15. CROP TO ACTUAL EL SALVADOR POLYGON
