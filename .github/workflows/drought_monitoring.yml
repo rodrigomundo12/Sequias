@@ -1,0 +1,48 @@
+name: Drought Monitoring - Local Windows
+
+on:
+  workflow_dispatch:
+
+jobs:
+
+  test-local-runner:
+
+    runs-on: self-hosted
+
+    steps:
+
+      - name: Test runner
+        shell: powershell
+        run: |
+          Write-Host "=============================================="
+          Write-Host "SEQUIAS LOCAL RUNNER TEST"
+          Write-Host "=============================================="
+
+          Write-Host ""
+          Write-Host "Computer:"
+          $env:COMPUTERNAME
+
+          Write-Host ""
+          Write-Host "User:"
+          $env:USERNAME
+
+          Write-Host ""
+          Write-Host "Current directory:"
+          Get-Location
+
+          Write-Host ""
+          Write-Host "Python:"
+          python --version
+
+          Write-Host ""
+          Write-Host "Python executable:"
+          Get-Command python
+
+          Write-Host ""
+          Write-Host "Project directory:"
+          Test-Path "C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos"
+
+          Write-Host ""
+          Write-Host "=============================================="
+          Write-Host "RUNNER TEST COMPLETE"
+          Write-Host "=============================================="
