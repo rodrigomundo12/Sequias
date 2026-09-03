@@ -11,27 +11,53 @@ jobs:
 
     steps:
 
-      - name: Test Python environments
+      - name: Test Sequias Python environment
         shell: cmd
         run: |
 
           echo ==============================================
-          echo TESTING PYTHON ENVIRONMENTS
+          echo SEQUIAS PYTHON ENVIRONMENT
           echo ==============================================
 
-          echo.
-          echo --- Default Python ---
-          python --version
+          set PYTHON_EXE=C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe
 
           echo.
-          echo --- ArcGIS Pro Python ---
-          "C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe" --version
+          echo Python:
+          "%PYTHON_EXE%" --version
 
           echo.
-          echo --- Testing packages ---
-          "C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe" -c "import sys; print(sys.executable); import numpy; print('numpy OK:', numpy.__version__); import pandas; print('pandas OK:', pandas.__version__); import rasterio; print('rasterio OK:', rasterio.__version__); import geopandas; print('geopandas OK:', geopandas.__version__); import shapely; print('shapely OK:', shapely.__version__); import fiona; print('fiona OK:', fiona.__version__); import requests; print('requests OK')"
+          echo Executable:
+          "%PYTHON_EXE%" -c "import sys; print(sys.executable)"
+
+          echo.
+          echo Testing NumPy:
+          "%PYTHON_EXE%" -c "import numpy; print('numpy', numpy.__version__)"
+
+          echo.
+          echo Testing Pandas:
+          "%PYTHON_EXE%" -c "import pandas; print('pandas', pandas.__version__)"
+
+          echo.
+          echo Testing Rasterio:
+          "%PYTHON_EXE%" -c "import rasterio; print('rasterio', rasterio.__version__)"
+
+          echo.
+          echo Testing GeoPandas:
+          "%PYTHON_EXE%" -c "import geopandas; print('geopandas', geopandas.__version__)"
+
+          echo.
+          echo Testing Shapely:
+          "%PYTHON_EXE%" -c "import shapely; print('shapely', shapely.__version__)"
+
+          echo.
+          echo Testing Fiona:
+          "%PYTHON_EXE%" -c "import fiona; print('fiona', fiona.__version__)"
+
+          echo.
+          echo Testing Sentinel Hub:
+          "%PYTHON_EXE%" -c "import sentinelhub; print('sentinelhub OK')"
 
           echo.
           echo ==============================================
-          echo PYTHON TEST COMPLETE
+          echo ENVIRONMENT TEST COMPLETE
           echo ==============================================
