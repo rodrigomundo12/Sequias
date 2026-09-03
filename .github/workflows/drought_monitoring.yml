@@ -5,48 +5,33 @@ on:
 
 jobs:
 
-  test-local-runner:
+  test-python:
 
     runs-on: self-hosted
 
     steps:
 
-      - name: Test local runner
+      - name: Test Python environments
         shell: cmd
         run: |
+
           echo ==============================================
-          echo SEQUIAS LOCAL RUNNER TEST
+          echo TESTING PYTHON ENVIRONMENTS
           echo ==============================================
 
           echo.
-          echo Computer:
-          echo %COMPUTERNAME%
-
-          echo.
-          echo User:
-          echo %USERNAME%
-
-          echo.
-          echo Current directory:
-          cd
-
-          echo.
-          echo Python:
+          echo --- Default Python ---
           python --version
 
           echo.
-          echo Python executable:
-          where python
+          echo --- ArcGIS Pro Python ---
+          "C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe" --version
 
           echo.
-          echo Project directory:
-          if exist "C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos" (
-              echo TRUE
-          ) else (
-              echo FALSE
-          )
+          echo --- Testing packages ---
+          "C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe" -c "import sys; print(sys.executable); import numpy; print('numpy OK:', numpy.__version__); import pandas; print('pandas OK:', pandas.__version__); import rasterio; print('rasterio OK:', rasterio.__version__); import geopandas; print('geopandas OK:', geopandas.__version__); import shapely; print('shapely OK:', shapely.__version__); import fiona; print('fiona OK:', fiona.__version__); import requests; print('requests OK')"
 
           echo.
           echo ==============================================
-          echo RUNNER TEST COMPLETE
+          echo PYTHON TEST COMPLETE
           echo ==============================================
