@@ -83,7 +83,7 @@ from rasterio.features import shapes
 from rasterio.mask import mask
 from affine import Affine
 from shapely.geometry import shape, mapping
-
+from rasterio.windows import Window
 from sentinelhub import (
     SHConfig,
     SentinelHubRequest,
