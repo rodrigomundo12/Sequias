@@ -81,7 +81,7 @@ from rasterio.merge import merge
 from rasterio.transform import from_bounds, Affine
 from rasterio.features import shapes
 from rasterio.mask import mask
-
+from affine import Affine
 from shapely.geometry import shape, mapping
 
 from sentinelhub import (
@@ -1126,11 +1126,9 @@ for hydro_year in YEARS:
 
             driver="GTiff",
 
-            height=
-            composite.shape[0],
+            height=composite.shape[0],
 
-            width=
-            composite.shape[1],
+            width=composite.shape[1],
 
             count=5,
 
@@ -1138,20 +1136,13 @@ for hydro_year in YEARS:
 
             crs="EPSG:4326",
 
-            transform=from_bounds(
-
+            transform=Affine(
+                (tile.max_x - tile.min_x) / composite.shape[1],
+                0.0,
                 tile.min_x,
-
-                tile.min_y,
-
-                tile.max_x,
-
-                tile.max_y,
-
-                composite.shape[1],
-
-                composite.shape[0]
-
+                0.0,
+                -(tile.max_y - tile.min_y) / composite.shape[0],
+                tile.max_y
             ),
 
             compress="lzw",
@@ -1162,7 +1153,6 @@ for hydro_year in YEARS:
 
         ) as dst:
 
-
             for band in range(5):
 
                 dst.write(
@@ -1172,7 +1162,6 @@ for hydro_year in YEARS:
                     band + 1
 
                 )
-
 
         del composite
 
