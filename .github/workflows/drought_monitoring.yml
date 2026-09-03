@@ -5,59 +5,46 @@ on:
 
 jobs:
 
-  test-python:
+  run-drought-monitoring:
 
     runs-on: self-hosted
 
     steps:
 
-      - name: Test Sequias Python environment
+      - name: Run drought monitoring script
         shell: cmd
         run: |
 
           echo ==============================================
-          echo SEQUIAS PYTHON ENVIRONMENT
+          echo STARTING SEQUIAS DROUGHT MONITORING
           echo ==============================================
 
           set PYTHON_EXE=C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe
+
+          set PROJECT_ROOT=C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos
 
           echo.
           echo Python:
           "%PYTHON_EXE%" --version
 
           echo.
-          echo Executable:
-          "%PYTHON_EXE%" -c "import sys; print(sys.executable)"
+          echo Project:
+          "%PROJECT_ROOT%"
 
           echo.
-          echo Testing NumPy:
-          "%PYTHON_EXE%" -c "import numpy; print('numpy', numpy.__version__)"
+          echo Running script...
 
-          echo.
-          echo Testing Pandas:
-          "%PYTHON_EXE%" -c "import pandas; print('pandas', pandas.__version__)"
+          "%PYTHON_EXE%" "%PROJECT_ROOT%\scripts\run_drought_monitoring.py"
 
-          echo.
-          echo Testing Rasterio:
-          "%PYTHON_EXE%" -c "import rasterio; print('rasterio', rasterio.__version__)"
-
-          echo.
-          echo Testing GeoPandas:
-          "%PYTHON_EXE%" -c "import geopandas; print('geopandas', geopandas.__version__)"
-
-          echo.
-          echo Testing Shapely:
-          "%PYTHON_EXE%" -c "import shapely; print('shapely', shapely.__version__)"
-
-          echo.
-          echo Testing Fiona:
-          "%PYTHON_EXE%" -c "import fiona; print('fiona', fiona.__version__)"
-
-          echo.
-          echo Testing Sentinel Hub:
-          "%PYTHON_EXE%" -c "import sentinelhub; print('sentinelhub OK')"
+          if errorlevel 1 (
+              echo.
+              echo ==============================================
+              echo DROUGHT MONITORING FAILED
+              echo ==============================================
+              exit /b 1
+          )
 
           echo.
           echo ==============================================
-          echo ENVIRONMENT TEST COMPLETE
+          echo DROUGHT MONITORING FINISHED
           echo ==============================================
