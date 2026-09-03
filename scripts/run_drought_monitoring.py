@@ -2176,6 +2176,21 @@ print("=" * 80)
 print("COMPOSITE CROPPING FINISHED")
 print("=" * 80)
 
+# ================================================================
+# HELPER: GET CROPPED COMPOSITE PATH
+# ================================================================
+
+def cropped_composite_path(hydro_year, quarter_name):
+    """
+    Return the path of the composite cropped to the
+    El Salvador national polygon.
+    """
+
+    return os.path.join(
+        QUARTERLY_DIR,
+        f"composite_{hydro_year}_{quarter_name}_cropped.tif"
+    )
+
 
 # ================================================================
 # 16. FIND AVAILABLE COMPOSITES
