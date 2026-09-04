@@ -5,13 +5,17 @@ on:
 
 jobs:
 
-  run-drought-monitoring:
+  drought-monitoring:
 
     runs-on: self-hosted
 
     steps:
 
-      - name: Run drought monitoring script
+      # ============================================================
+      # 1. RUN DROUGHT MONITORING
+      # ============================================================
+
+      - name: Run Sequias drought monitoring
         shell: cmd
         run: |
 
@@ -19,9 +23,9 @@ jobs:
           echo STARTING SEQUIAS DROUGHT MONITORING
           echo ==============================================
 
-          set PYTHON_EXE=C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe
-
-          set PROJECT_ROOT=C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos
+          set "PYTHON_EXE=C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe"
+          set "PROJECT_ROOT=C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos"
+          set "SCRIPT=%PROJECT_ROOT%\scripts\run_drought_monitoring.py"
 
           echo.
           echo Python:
@@ -29,12 +33,22 @@ jobs:
 
           echo.
           echo Project:
-          "%PROJECT_ROOT%"
+          echo %PROJECT_ROOT%
+
+          echo.
+          echo Script:
+          echo %SCRIPT%
+
+          if not exist "%SCRIPT%" (
+              echo.
+              echo ERROR: run_drought_monitoring.py was not found.
+              exit /b 1
+          )
 
           echo.
           echo Running script...
 
-          "%PYTHON_EXE%" "%PROJECT_ROOT%\scripts\run_drought_monitoring.py"
+          "%PYTHON_EXE%" "%SCRIPT%"
 
           if errorlevel 1 (
               echo.
@@ -46,5 +60,225 @@ jobs:
 
           echo.
           echo ==============================================
-          echo DROUGHT MONITORING FINISHED
+          echo DROUGHT MONITORING FINISHED SUCCESSFULLY
           echo ==============================================
+
+
+      # ============================================================
+      # 2. PREPARE GITHUB PAGES FILES
+      # ============================================================
+
+      - name: Prepare GitHub Pages
+        shell: cmd
+        run: |
+
+          echo ==============================================
+          echo PREPARING GITHUB PAGES
+          echo ==============================================
+
+          set "PROJECT_ROOT=C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos"
+
+          cd /d "%PROJECT_ROOT%"
+
+          echo.
+          echo Project directory:
+          cd
+
+          echo.
+          echo Checking distribution...
+
+          if not exist "distribution\latest" (
+              echo ERROR: distribution\latest does not exist.
+              exit /b 1
+          )
+
+          echo.
+          echo Distribution contents:
+
+          dir "distribution\latest" /s
+
+          echo.
+          echo Creating docs directory...
+
+          if not exist "docs" mkdir "docs"
+
+          echo.
+          echo Removing previous web vectors...
+
+          if exist "docs\vectors" (
+              rmdir /s /q "docs\vectors"
+          )
+
+          mkdir "docs\vectors"
+
+          echo.
+          echo Removing previous metadata...
+
+          if exist "docs\metadata" (
+              rmdir /s /q "docs\metadata"
+          )
+
+          mkdir "docs\metadata"
+
+          echo.
+          echo Copying latest vector products...
+
+          if exist "distribution\latest\vectors\*" (
+
+              xcopy "distribution\latest\vectors\*" "docs\vectors\" /E /I /Y
+
+          ) else (
+
+              echo WARNING: No vector products found.
+
+          )
+
+          echo.
+          echo Copying metadata...
+
+          if exist "metadata\*" (
+
+              xcopy "metadata\*" "docs\metadata\" /E /I /Y
+
+          ) else (
+
+              echo WARNING: No metadata directory found.
+
+          )
+
+          echo.
+          echo ==============================================
+          echo GITHUB PAGES FILES PREPARED
+          echo ==============================================
+
+          echo.
+          echo Final docs contents:
+
+          dir "docs" /s
+
+
+      # ============================================================
+      # 3. CREATE SIMPLE GITHUB PAGES LANDING PAGE
+      # ============================================================
+
+      - name: Create GitHub Pages index
+        shell: cmd
+        run: |
+
+          echo ==============================================
+          echo CREATING GITHUB PAGES INDEX
+          echo ==============================================
+
+          set "PROJECT_ROOT=C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos"
+
+          cd /d "%PROJECT_ROOT%"
+
+          (
+            echo ^<!DOCTYPE html^>
+            echo ^<html lang="en"^>
+            echo ^<head^>
+            echo ^<meta charset="UTF-8"^>
+            echo ^<meta name="viewport" content="width=device-width, initial-scale=1.0"^>
+            echo ^<title^>El Salvador Drought Monitoring^</title^>
+            echo ^<style^>
+            echo body { font-family: Arial, sans-serif; margin: 40px; }
+            echo h1 { margin-bottom: 10px; }
+            echo .box { padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
+            echo a { text-decoration: none; }
+            echo ^</style^>
+            echo ^</head^>
+            echo ^<body^>
+            echo ^<h1^>El Salvador Drought Monitoring^</h1^>
+            echo ^<div class="box"^>
+            echo ^<p^>Automated drought-monitoring products derived from Sentinel-2 L2A.^</p^>
+            echo ^<p^>Latest products are automatically updated by the local processing system.^</p^>
+            echo ^<h2^>Latest Vector Products^</h2^>
+            echo ^<p^>Open the ^<a href="vectors/"^>latest vector products^</a^>.^</p^>
+            echo ^</div^>
+            echo ^</body^>
+            echo ^</html^>
+          ) > "docs\index.html"
+
+          echo.
+          echo GitHub Pages index created.
+
+
+      # ============================================================
+      # 4. COMMIT AND PUSH
+      # ============================================================
+
+      - name: Commit and push web products
+        shell: cmd
+        run: |
+
+          echo ==============================================
+          echo COMMITTING WEB PRODUCTS
+          echo ==============================================
+
+          set "PROJECT_ROOT=C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos"
+
+          cd /d "%PROJECT_ROOT%"
+
+          echo.
+          echo Git repository:
+
+          git rev-parse --show-toplevel
+
+          echo.
+          echo Git status:
+
+          git status
+
+          echo.
+          echo Adding docs...
+
+          git add docs
+
+          echo.
+          echo Checking staged changes...
+
+          git diff --cached --quiet
+
+          if not errorlevel 1 (
+
+              echo.
+              echo No changes detected.
+              echo Nothing to commit.
+              exit /b 0
+
+          )
+
+          echo.
+          echo Creating commit...
+
+          git commit -m "Update drought monitoring web products"
+
+          if errorlevel 1 (
+
+              echo.
+              echo ERROR: Git commit failed.
+              exit /b 1
+
+          )
+
+          echo.
+          echo Pushing to GitHub...
+
+          git push origin main
+
+          if errorlevel 1 (
+
+              echo.
+              echo ERROR: Git push failed.
+              exit /b 1
+
+          )
+
+          echo.
+          echo ==============================================
+          echo WEB PRODUCTS PUBLISHED SUCCESSFULLY
+          echo ==============================================
+
+          echo.
+          echo GitHub Pages:
+          echo https://rodrigomundo12.github.io/Sequias/
