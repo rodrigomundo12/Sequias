@@ -244,6 +244,330 @@ def get_config(
 # 4. AOI
 # ================================================================
 
+def crop_raster_to_aoi(input_path, output_path, aoi_gdf):
+
+    print()
+    print("Masking composite to El Salvador boundary...")
+
+    # ------------------------------------------------------------
+    # AOI geometry
+    # ------------------------------------------------------------
+
+    aoi_geom = aoi_gdf.to_crs("EPSG:4326").geometry.unary_union
+
+    # ------------------------------------------------------------
+    # Open raster
+    # ------------------------------------------------------------
+
+    with rasterio.open(input_path) as src:
+
+        src_crs = src.crs
+        width = src.width
+        height = src.height
+        count = src.count
+
+        transform = src.transform
+
+        # --------------------------------------------------------
+        # Extract affine coefficients manually
+        # Avoid operations that trigger the ArcGIS/affine issue
+        # --------------------------------------------------------
+
+        a = float(transform.a)
+        b = float(transform.b)
+        c = float(transform.c)
+
+        d = float(transform.d)
+        e = float(transform.e)
+        f = float(transform.f)
+
+        # --------------------------------------------------------
+        # Calculate raster bounds manually
+        # --------------------------------------------------------
+
+        left = c
+        top = f
+
+        right = (
+            c
+            + a * width
+            + b * height
+        )
+
+        bottom = (
+            f
+            + d * width
+            + e * height
+        )
+
+        raster_min_x = min(left, right)
+        raster_max_x = max(left, right)
+
+        raster_min_y = min(bottom, top)
+        raster_max_y = max(bottom, top)
+
+        # --------------------------------------------------------
+        # AOI bounds
+        # --------------------------------------------------------
+
+        aoi_min_x, aoi_min_y, aoi_max_x, aoi_max_y = (
+            aoi_geom.bounds
+        )
+
+        print(
+            f"Raster bounds: "
+            f"{raster_min_x} "
+            f"{raster_min_y} "
+            f"{raster_max_x} "
+            f"{raster_max_y}"
+        )
+
+        print(
+            f"AOI bounds: "
+            f"{aoi_min_x} "
+            f"{aoi_min_y} "
+            f"{aoi_max_x} "
+            f"{aoi_max_y}"
+        )
+
+        # --------------------------------------------------------
+        # Intersection
+        # --------------------------------------------------------
+
+        min_x = max(
+            raster_min_x,
+            aoi_min_x
+        )
+
+        max_x = min(
+            raster_max_x,
+            aoi_max_x
+        )
+
+        min_y = max(
+            raster_min_y,
+            aoi_min_y
+        )
+
+        max_y = min(
+            raster_max_y,
+            aoi_max_y
+        )
+
+        if (
+            min_x >= max_x
+            or min_y >= max_y
+        ):
+            raise ValueError(
+                "Raster and AOI do not overlap."
+            )
+
+        # --------------------------------------------------------
+        # Pixel dimensions
+        # --------------------------------------------------------
+
+        pixel_width = abs(a)
+        pixel_height = abs(e)
+
+        # --------------------------------------------------------
+        # Calculate crop window
+        # --------------------------------------------------------
+
+        col_start = int(
+            np.floor(
+                (min_x - raster_min_x)
+                / pixel_width
+            )
+        )
+
+        col_end = int(
+            np.ceil(
+                (max_x - raster_min_x)
+                / pixel_width
+            )
+        )
+
+        row_start = int(
+            np.floor(
+                (raster_max_y - max_y)
+                / pixel_height
+            )
+        )
+
+        row_end = int(
+            np.ceil(
+                (raster_max_y - min_y)
+                / pixel_height
+            )
+        )
+
+        # --------------------------------------------------------
+        # Clamp to raster
+        # --------------------------------------------------------
+
+        col_start = max(
+            0,
+            min(col_start, width)
+        )
+
+        col_end = max(
+            0,
+            min(col_end, width)
+        )
+
+        row_start = max(
+            0,
+            min(row_start, height)
+        )
+
+        row_end = max(
+            0,
+            min(row_end, height)
+        )
+
+        crop_width = col_end - col_start
+        crop_height = row_end - row_start
+
+        if crop_width <= 0 or crop_height <= 0:
+            raise ValueError(
+                "Calculated crop window is empty."
+            )
+
+        print(
+            f"Crop size: "
+            f"{crop_width} x {crop_height}"
+        )
+
+        # --------------------------------------------------------
+        # Read crop
+        # --------------------------------------------------------
+
+        window = rasterio.windows.Window(
+            col_start,
+            row_start,
+            crop_width,
+            crop_height
+        )
+
+        data = src.read(
+            window=window
+        ).astype(np.float32)
+
+        # --------------------------------------------------------
+        # Calculate new transform manually
+        # --------------------------------------------------------
+
+        new_c = (
+            c
+            + col_start * a
+            + row_start * b
+        )
+
+        new_f = (
+            f
+            + col_start * d
+            + row_start * e
+        )
+
+        new_transform = Affine(
+            a,
+            b,
+            new_c,
+            d,
+            e,
+            new_f
+        )
+
+        # --------------------------------------------------------
+        # Create pixel-center coordinates
+        # --------------------------------------------------------
+
+        cols = (
+            np.arange(crop_width)
+            + 0.5
+        )
+
+        rows = (
+            np.arange(crop_height)
+            + 0.5
+        )
+
+        x_coords = (
+            new_c
+            + cols * a
+        )
+
+        y_coords = (
+            new_f
+            + rows * e
+        )
+
+        xx, yy = np.meshgrid(
+            x_coords,
+            y_coords
+        )
+
+        # --------------------------------------------------------
+        # Determine pixels inside El Salvador
+        # --------------------------------------------------------
+
+        from shapely import contains_xy
+
+        inside = contains_xy(
+            aoi_geom,
+            xx,
+            yy
+        )
+
+        # --------------------------------------------------------
+        # Mask everything outside the polygon
+        # --------------------------------------------------------
+
+        for band in range(count):
+
+            band_data = data[band]
+
+            band_data[~inside] = np.nan
+
+            data[band] = band_data
+
+        # --------------------------------------------------------
+        # Output profile
+        # --------------------------------------------------------
+
+        profile = src.profile.copy()
+
+        profile.update(
+            driver="GTiff",
+            height=crop_height,
+            width=crop_width,
+            count=count,
+            dtype="float32",
+            crs=src_crs,
+            transform=new_transform,
+            nodata=np.nan,
+            compress="lzw",
+            tiled=True,
+            BIGTIFF="IF_SAFER"
+        )
+
+        # --------------------------------------------------------
+        # Write cropped raster
+        # --------------------------------------------------------
+
+        with rasterio.open(
+            output_path,
+            "w",
+            **profile
+        ) as dst:
+
+            dst.write(data)
+
+    print(
+        f"OK: Cropped composite saved: "
+        f"{os.path.basename(output_path)}"
+    )
+
 BOUNDARY_URL = (
     "https://raw.githubusercontent.com/"
     "johan/world.geo.json/master/countries/"
