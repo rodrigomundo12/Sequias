@@ -1267,7 +1267,44 @@ def merge_tiles_manual(
 
         for src in srcs:
 
-            bounds = src.bounds
+            # ------------------------------------------------------------
+            # Calculate raster bounds manually.
+            #
+            # Avoid src.bounds because the ArcGIS Pro environment has an
+            # Affine compatibility issue.
+            # ------------------------------------------------------------
+
+            transform = src.transform
+
+            a = float(transform.a)
+            b = float(transform.b)
+            c = float(transform.c)
+
+            d = float(transform.d)
+            e = float(transform.e)
+            f = float(transform.f)
+
+            left = c
+            top = f
+
+            right = (
+                c
+                + a * src.width
+                + b * src.height
+            )
+
+            bottom = (
+                f
+                + d * src.width
+                + e * src.height
+            )
+
+            bounds = (
+                min(left, right),
+                min(bottom, top),
+                max(left, right),
+                max(bottom, top)
+            )
 
             tile_info.append(
                 {
