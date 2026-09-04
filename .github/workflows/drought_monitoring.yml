@@ -12,6 +12,51 @@ jobs:
     steps:
 
       # ============================================================
+      # 0. SYNCHRONIZE LOCAL SELF-HOSTED RUNNER
+      # ============================================================
+
+      - name: Synchronize local repository
+        shell: cmd
+        run: |
+
+          echo ==============================================
+          echo SYNCHRONIZING LOCAL REPOSITORY
+          echo ==============================================
+
+          set "PROJECT_ROOT=C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos"
+
+          cd /d "%PROJECT_ROOT%"
+
+          echo.
+          echo Fetching origin/main...
+
+          git fetch origin main
+
+          if errorlevel 1 (
+              echo ERROR: git fetch failed.
+              exit /b 1
+          )
+
+          echo.
+          echo Resetting local repository to origin/main...
+
+          git reset --hard origin/main
+
+          if errorlevel 1 (
+              echo ERROR: git reset failed.
+              exit /b 1
+          )
+
+          echo.
+          echo Current commit:
+
+          git rev-parse --short HEAD
+
+          echo.
+          echo Repository synchronized successfully.
+
+
+      # ============================================================
       # 1. RUN DROUGHT MONITORING
       # ============================================================
 
@@ -82,28 +127,10 @@ jobs:
 
           echo.
           echo Project directory:
-          cd
+          echo %PROJECT_ROOT%
 
           echo.
-          echo Checking distribution...
-
-          if not exist "distribution\latest" (
-              echo ERROR: distribution\latest does not exist.
-              exit /b 1
-          )
-
-          echo.
-          echo Distribution contents:
-
-          dir "distribution\latest" /s
-
-          echo.
-          echo Creating docs directory...
-
-          if not exist "docs" mkdir "docs"
-
-          echo.
-          echo Removing previous web vectors...
+          echo Cleaning previous web vectors...
 
           if exist "docs\vectors" (
               rmdir /s /q "docs\vectors"
@@ -112,7 +139,47 @@ jobs:
           mkdir "docs\vectors"
 
           echo.
-          echo Removing previous metadata...
+          echo Checking optimized web products...
+
+          if not exist "distribution\latest\vectors\NDDI.geojson" (
+              echo ERROR: NDDI.geojson not found.
+              exit /b 1
+          )
+
+          echo.
+          echo Copying optimized web products only...
+
+          if exist "distribution\latest\vectors\NDDI.geojson" (
+              copy /Y "distribution\latest\vectors\NDDI.geojson" "docs\vectors\NDDI.geojson"
+          )
+
+          if exist "distribution\latest\vectors\MNDWI.geojson" (
+              copy /Y "distribution\latest\vectors\MNDWI.geojson" "docs\vectors\MNDWI.geojson"
+          )
+
+          if exist "distribution\latest\vectors\NMDI.geojson" (
+              copy /Y "distribution\latest\vectors\NMDI.geojson" "docs\vectors\NMDI.geojson"
+          )
+
+          if exist "distribution\latest\vectors\NDII.geojson" (
+              copy /Y "distribution\latest\vectors\NDII.geojson" "docs\vectors\NDII.geojson"
+          )
+
+          if exist "distribution\latest\vectors\NDVI.geojson" (
+              copy /Y "distribution\latest\vectors\NDVI.geojson" "docs\vectors\NDVI.geojson"
+          )
+
+          echo.
+          echo ==============================================
+          echo WEB VECTOR FILES
+          echo ==============================================
+
+          dir "docs\vectors"
+
+          echo.
+          echo ==============================================
+          echo COPYING METADATA
+          echo ==============================================
 
           if exist "docs\metadata" (
               rmdir /s /q "docs\metadata"
@@ -120,30 +187,10 @@ jobs:
 
           mkdir "docs\metadata"
 
-          echo.
-          echo Copying latest vector products...
-
-          if exist "distribution\latest\vectors\*" (
-
-              xcopy "distribution\latest\vectors\*" "docs\vectors\" /E /I /Y
-
-          ) else (
-
-              echo WARNING: No vector products found.
-
-          )
-
-          echo.
-          echo Copying metadata...
-
           if exist "metadata\*" (
-
               xcopy "metadata\*" "docs\metadata\" /E /I /Y
-
           ) else (
-
               echo WARNING: No metadata directory found.
-
           )
 
           echo.
@@ -151,14 +198,9 @@ jobs:
           echo GITHUB PAGES FILES PREPARED
           echo ==============================================
 
-          echo.
-          echo Final docs contents:
-
-          dir "docs" /s
-
 
       # ============================================================
-      # 3. CREATE SIMPLE GITHUB PAGES LANDING PAGE
+      # 3. CREATE GITHUB PAGES LANDING PAGE
       # ============================================================
 
       - name: Create GitHub Pages index
