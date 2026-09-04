@@ -109,7 +109,7 @@ jobs:
           echo ==============================================
 
 
-      # ============================================================
+            # ============================================================
       # 2. PREPARE GITHUB PAGES FILES
       # ============================================================
 
@@ -171,6 +171,40 @@ jobs:
 
           echo.
           echo ==============================================
+          echo CREATING VECTOR PRODUCT INDEX
+          echo ==============================================
+
+          (
+            echo ^<!DOCTYPE html^>
+            echo ^<html lang="en"^>
+            echo ^<head^>
+            echo ^<meta charset="UTF-8"^>
+            echo ^<meta name="viewport" content="width=device-width, initial-scale=1.0"^>
+            echo ^<title^>El Salvador Drought Monitoring - Vector Products^</title^>
+            echo ^<style^>
+            echo body { font-family: Arial, sans-serif; margin: 40px; }
+            echo h1 { margin-bottom: 10px; }
+            echo li { margin: 12px 0; }
+            echo a { text-decoration: none; }
+            echo ^</style^>
+            echo ^</head^>
+            echo ^<body^>
+            echo ^<h1^>Latest Vector Products^</h1^>
+            echo ^<p^>El Salvador drought-monitoring products derived from Sentinel-2 L2A.^</p^>
+            echo ^<ul^>
+            echo ^<li^>^<a href="NDDI.geojson"^>NDDI^</a^>^</li^>
+            echo ^<li^>^<a href="MNDWI.geojson"^>MNDWI^</a^>^</li^>
+            echo ^<li^>^<a href="NMDI.geojson"^>NMDI^</a^>^</li^>
+            echo ^<li^>^<a href="NDII.geojson"^>NDII^</a^>^</li^>
+            echo ^<li^>^<a href="NDVI.geojson"^>NDVI^</a^>^</li^>
+            echo ^</ul^>
+            echo ^<p^>^<a href="../"^>Back to main page^</a^>^</p^>
+            echo ^</body^>
+            echo ^</html^>
+          ) > "docs\vectors\index.html"
+
+          echo.
+          echo ==============================================
           echo WEB VECTOR FILES
           echo ==============================================
 
@@ -197,7 +231,6 @@ jobs:
           echo ==============================================
           echo GITHUB PAGES FILES PREPARED
           echo ==============================================
-
 
       # ============================================================
       # 3. CREATE GITHUB PAGES LANDING PAGE
