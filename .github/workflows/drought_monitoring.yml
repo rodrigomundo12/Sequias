@@ -1,4 +1,3 @@
-```yaml
 name: Drought Monitoring - Local Windows
 
 on:
@@ -147,42 +146,32 @@ jobs:
               exit /b 1
           )
 
-          if not exist "distribution\latest\vectors\MNDWI.geojson" (
-              echo ERROR: MNDWI.geojson not found.
-              exit /b 1
-          )
-
-          if not exist "distribution\latest\vectors\NMDI.geojson" (
-              echo ERROR: NMDI.geojson not found.
-              exit /b 1
-          )
-
-          if not exist "distribution\latest\vectors\NDII.geojson" (
-              echo ERROR: NDII.geojson not found.
-              exit /b 1
-          )
-
-          if not exist "distribution\latest\vectors\NDVI.geojson" (
-              echo ERROR: NDVI.geojson not found.
-              exit /b 1
-          )
-
           echo.
-          echo Copying optimized web products...
+          echo Copying optimized web products only...
 
-          copy /Y "distribution\latest\vectors\NDDI.geojson" "docs\vectors\NDDI.geojson"
+          if exist "distribution\latest\vectors\NDDI.geojson" (
+              copy /Y "distribution\latest\vectors\NDDI.geojson" "docs\vectors\NDDI.geojson"
+          )
 
-          copy /Y "distribution\latest\vectors\MNDWI.geojson" "docs\vectors\MNDWI.geojson"
+          if exist "distribution\latest\vectors\MNDWI.geojson" (
+              copy /Y "distribution\latest\vectors\MNDWI.geojson" "docs\vectors\MNDWI.geojson"
+          )
 
-          copy /Y "distribution\latest\vectors\NMDI.geojson" "docs\vectors\NMDI.geojson"
+          if exist "distribution\latest\vectors\NMDI.geojson" (
+              copy /Y "distribution\latest\vectors\NMDI.geojson" "docs\vectors\NMDI.geojson"
+          )
 
-          copy /Y "distribution\latest\vectors\NDII.geojson" "docs\vectors\NDII.geojson"
+          if exist "distribution\latest\vectors\NDII.geojson" (
+              copy /Y "distribution\latest\vectors\NDII.geojson" "docs\vectors\NDII.geojson"
+          )
 
-          copy /Y "distribution\latest\vectors\NDVI.geojson" "docs\vectors\NDVI.geojson"
+          if exist "distribution\latest\vectors\NDVI.geojson" (
+              copy /Y "distribution\latest\vectors\NDVI.geojson" "docs\vectors\NDVI.geojson"
+          )
 
           echo.
           echo ==============================================
-          echo CREATING INTERACTIVE LEAFLET MAP
+          echo CREATING VECTOR PRODUCT INDEX
           echo ==============================================
 
           (
@@ -191,258 +180,25 @@ jobs:
             echo ^<head^>
             echo ^<meta charset="UTF-8"^>
             echo ^<meta name="viewport" content="width=device-width, initial-scale=1.0"^>
-            echo ^<title^>El Salvador Drought Monitoring^</title^>
-            echo ^<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /^>
+            echo ^<title^>El Salvador Drought Monitoring - Vector Products^</title^>
             echo ^<style^>
-            echo html, body { height: 100%%; margin: 0; }
-            echo body { font-family: Arial, sans-serif; }
-            echo #map { height: 100%%; width: 100%%; }
-            echo .panel {
-            echo position: absolute;
-            echo top: 10px;
-            echo left: 50px;
-            echo z-index: 1000;
-            echo background: white;
-            echo padding: 15px;
-            echo border-radius: 8px;
-            echo box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-            echo min-width: 240px;
-            echo }
-            echo .panel h2 {
-            echo margin: 0 0 10px 0;
-            echo font-size: 18px;
-            echo }
-            echo .panel label {
-            echo font-size: 13px;
-            echo display: block;
-            echo margin-bottom: 5px;
-            echo }
-            echo .panel select {
-            echo width: 100%%;
-            echo padding: 7px;
-            echo font-size: 14px;
-            echo }
-            echo .subtitle {
-            echo font-size: 12px;
-            echo color: #555;
-            echo margin-top: 8px;
-            echo }
-            echo .legend {
-            echo background: white;
-            echo padding: 10px;
-            echo line-height: 22px;
-            echo border-radius: 5px;
-            echo box-shadow: 0 1px 5px rgba(0,0,0,0.25);
-            }
-            echo .legend i {
-            echo width: 18px;
-            echo height: 18px;
-            echo float: left;
-            echo margin-right: 8px;
-            echo opacity: 0.8;
-            echo }
-            echo .loading {
-            echo position: absolute;
-            echo top: 10px;
-            echo right: 10px;
-            echo z-index: 1000;
-            echo background: white;
-            echo padding: 8px 12px;
-            echo border-radius: 5px;
-            echo box-shadow: 0 1px 5px rgba(0,0,0,0.25);
-            echo display: none;
-            echo }
-            echo .error {
-            echo color: #b30000;
-            echo font-weight: bold;
-            echo }
+            echo body { font-family: Arial, sans-serif; margin: 40px; }
+            echo h1 { margin-bottom: 10px; }
+            echo li { margin: 12px 0; }
+            echo a { text-decoration: none; }
             echo ^</style^>
             echo ^</head^>
             echo ^<body^>
-
-            echo ^<div id="map"^>^</div^>
-
-            echo ^<div class="panel"^>
-            echo ^<h2^>El Salvador Drought Monitoring^</h2^>
-            echo ^<label for="indexSelect"^>Drought index:^</label^>
-            echo ^<select id="indexSelect"^>
-            echo ^<option value="NDDI"^>NDDI^</option^>
-            echo ^<option value="MNDWI"^>MNDWI^</option^>
-            echo ^<option value="NMDI"^>NMDI^</option^>
-            echo ^<option value="NDII"^>NDII^</option^>
-            echo ^<option value="NDVI"^>NDVI^</option^>
-            echo ^</select^>
-            echo ^<div class="subtitle" id="statusText"^>Loading NDDI...^</div^>
-            echo ^</div^>
-
-            echo ^<div id="loading" class="loading"^>Loading...^</div^>
-
-            echo ^<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"^>^</script^>
-
-            echo ^<script^>
-
-            echo const map = L.map('map').setView([13.79, -88.9], 8);
-
-            echo L.tileLayer(
-            echo 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            echo {
-            echo attribution: '&copy; OpenStreetMap contributors'
-            echo }
-            echo ).addTo(map);
-
-            echo const classColors = {
-            echo 1: '#d73027',
-            echo 2: '#fc8d59',
-            echo 3: '#ffffbf',
-            echo 4: '#91cf60',
-            echo 5: '#1a9850'
-            echo };
-
-            echo const classLabels = {
-            echo 1: 'Very Low',
-            echo 2: 'Low',
-            echo 3: 'Normal',
-            echo 4: 'High',
-            echo 5: 'Very High'
-            echo };
-
-            echo let currentLayer = null;
-
-            echo function styleFeature(feature) {
-            echo const id = feature.properties.class_id;
-            echo let fill = '#999999';
-            echo if (classColors[id]) {
-            echo fill = classColors[id];
-            echo }
-            echo return {
-            echo fillColor: fill,
-            echo weight: 0.5,
-            echo opacity: 1,
-            echo color: '#555555',
-            echo fillOpacity: 0.65
-            echo };
-            echo }
-
-            echo function onEachFeature(feature, layer) {
-            echo const p = feature.properties;
-            echo let className = 'Unknown';
-            echo if (p.class_name) {
-            echo className = p.class_name;
-            echo }
-            echo let indexName = '';
-            echo if (p.index) {
-            echo indexName = p.index;
-            echo }
-            echo let areaText = 'N/A';
-            echo if (p.area_m2) {
-            echo areaText = Number(p.area_m2).toLocaleString() + ' m²';
-            echo }
-            echo layer.bindPopup(
-            echo '^<b^>' + indexName + '^</b^>^<br^>' +
-            echo '^<b^>Class:^</b^> ' + className + '^<br^>' +
-            echo '^<b^>Class ID:^</b^> ' + p.class_id + '^<br^>' +
-            echo '^<b^>Area:^</b^> ' + areaText
-            echo );
-            echo layer.on({
-            echo mouseover: function(e) {
-            echo e.target.setStyle({
-            echo weight: 2,
-            echo color: '#000000'
-            echo });
-            echo },
-            echo mouseout: function(e) {
-            echo if (currentLayer) {
-            echo currentLayer.resetStyle(e.target);
-            echo }
-            echo }
-            echo });
-            echo }
-
-            echo function updateMap(indexName) {
-
-            echo const loading = document.getElementById('loading');
-            echo const statusText = document.getElementById('statusText');
-
-            echo loading.style.display = 'block';
-            echo statusText.innerHTML = 'Loading ' + indexName + '...';
-
-            echo if (currentLayer) {
-            echo map.removeLayer(currentLayer);
-            echo currentLayer = null;
-            echo }
-
-            echo fetch(indexName + '.geojson')
-            echo .then(response =^> {
-            echo if (!response.ok) {
-            echo throw new Error('HTTP ' + response.status);
-            echo }
-            echo return response.json();
-            echo })
-            echo .then(data =^> {
-
-            echo currentLayer = L.geoJSON(data, {
-            echo style: styleFeature,
-            echo onEachFeature: onEachFeature
-            echo }).addTo(map);
-
-            echo if (currentLayer.getBounds().isValid()) {
-            echo map.fitBounds(
-            echo currentLayer.getBounds(),
-            echo { padding: [20, 20] }
-            echo );
-            echo }
-
-            echo statusText.innerHTML =
-            echo indexName + ' - ' + data.features.length + ' polygons';
-
-            echo loading.style.display = 'none';
-
-            echo })
-            echo .catch(error =^> {
-
-            echo console.error(error);
-
-            echo statusText.innerHTML =
-            echo '^<span class="error"^>Error loading ' + indexName + '^</span^>';
-
-            echo loading.style.display = 'none';
-
-            echo alert(
-            echo 'Could not load ' + indexName + '.geojson'
-            echo );
-
-            echo });
-            echo }
-
-            echo const legend = L.control({position: 'bottomright'});
-
-            echo legend.onAdd = function(map) {
-
-            echo const div = L.DomUtil.create('div', 'legend');
-
-            echo div.innerHTML = '^<b^>Drought class^</b^>^<br^>';
-
-            echo for (let i = 1; i ^<= 5; i++) {
-
-            echo div.innerHTML +=
-            echo '^<i style="background:' + classColors[i] + '"^>^</i^>' +
-            echo classLabels[i] + '^<br^>';
-
-            echo }
-
-            echo return div;
-            echo };
-
-            echo legend.addTo(map);
-
-            echo document.getElementById('indexSelect')
-            echo .addEventListener('change', function() {
-            echo updateMap(this.value);
-            echo });
-
-            echo updateMap('NDDI');
-
-            echo ^</script^>
+            echo ^<h1^>Latest Vector Products^</h1^>
+            echo ^<p^>El Salvador drought-monitoring products derived from Sentinel-2 L2A.^</p^>
+            echo ^<ul^>
+            echo ^<li^>^<a href="NDDI.geojson"^>NDDI^</a^>^</li^>
+            echo ^<li^>^<a href="MNDWI.geojson"^>MNDWI^</a^>^</li^>
+            echo ^<li^>^<a href="NMDI.geojson"^>NMDI^</a^>^</li^>
+            echo ^<li^>^<a href="NDII.geojson"^>NDII^</a^>^</li^>
+            echo ^<li^>^<a href="NDVI.geojson"^>NDVI^</a^>^</li^>
+            echo ^</ul^>
+            echo ^<p^>^<a href="../"^>Back to main page^</a^>^</p^>
             echo ^</body^>
             echo ^</html^>
           ) > "docs\vectors\index.html"
@@ -476,7 +232,6 @@ jobs:
           echo GITHUB PAGES FILES PREPARED
           echo ==============================================
 
-
       # ============================================================
       # 3. CREATE GITHUB PAGES LANDING PAGE
       # ============================================================
@@ -501,50 +256,19 @@ jobs:
             echo ^<meta name="viewport" content="width=device-width, initial-scale=1.0"^>
             echo ^<title^>El Salvador Drought Monitoring^</title^>
             echo ^<style^>
-            echo body {
-            echo font-family: Arial, sans-serif;
-            echo margin: 0;
-            echo background: #f5f5f5;
-            echo }
-            echo .container {
-            echo max-width: 900px;
-            echo margin: 60px auto;
-            echo background: white;
-            echo padding: 40px;
-            echo border-radius: 10px;
-            echo box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-            echo }
-            echo h1 {
-            echo margin-bottom: 10px;
-            echo }
-            echo .box {
-            echo padding: 20px;
-            echo border: 1px solid #ccc;
-            echo border-radius: 8px;
-            echo }
-            echo a {
-            echo text-decoration: none;
-            echo }
-            echo .map-button {
-            echo display: inline-block;
-            echo margin-top: 15px;
-            echo padding: 12px 18px;
-            echo background: #333;
-            echo color: white;
-            echo border-radius: 6px;
-            echo }
+            echo body { font-family: Arial, sans-serif; margin: 40px; }
+            echo h1 { margin-bottom: 10px; }
+            echo .box { padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
+            echo a { text-decoration: none; }
             echo ^</style^>
             echo ^</head^>
             echo ^<body^>
-            echo ^<div class="container"^>
             echo ^<h1^>El Salvador Drought Monitoring^</h1^>
             echo ^<div class="box"^>
             echo ^<p^>Automated drought-monitoring products derived from Sentinel-2 L2A.^</p^>
             echo ^<p^>Latest products are automatically updated by the local processing system.^</p^>
-            echo ^<h2^>Latest Products^</h2^>
-            echo ^<p^>Interactive map of the latest drought-monitoring products.^</p^>
-            echo ^<a class="map-button" href="vectors/"^>Open Interactive Map^</a^>
-            echo ^</div^>
+            echo ^<h2^>Latest Vector Products^</h2^>
+            echo ^<p^>Open the ^<a href="vectors/"^>latest vector products^</a^>.^</p^>
             echo ^</div^>
             echo ^</body^>
             echo ^</html^>
@@ -633,4 +357,3 @@ jobs:
           echo.
           echo GitHub Pages:
           echo https://rodrigomundo12.github.io/Sequias/
-```
