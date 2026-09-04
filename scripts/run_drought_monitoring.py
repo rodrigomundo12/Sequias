@@ -1309,10 +1309,10 @@ def merge_tiles_manual(
             tile_info.append(
                 {
                     "src": src,
-                    "left": float(bounds.left),
-                    "right": float(bounds.right),
-                    "bottom": float(bounds.bottom),
-                    "top": float(bounds.top)
+                    "left": float(bounds[0]),
+                    "bottom": float(bounds[1]),
+                    "right": float(bounds[2]),
+                    "top": float(bounds[3]),
                 }
             )
 
