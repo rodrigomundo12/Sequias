@@ -3148,7 +3148,7 @@ PERCENTILE_SAMPLE_SIZE = 2_000_000
 MIN_POLYGON_AREA_M2 = 144000
 
 # Simplification in meters
-SIMPLIFY_TOLERANCE_M = 20
+SIMPLIFY_TOLERANCE_M = 750
 
 # Metric CRS
 METRIC_CRS = "EPSG:32616"
@@ -3354,17 +3354,32 @@ def classify_block(
         dtype=np.uint8
     )
 
-    valid = (
-        np.isfinite(data)
-        &
-        (data >= p2)
-        &
-        (data <= p98)
+    valid = np.isfinite(
+        data
     )
 
-    if not np.any(valid):
+    if not np.any(
+        valid
+    ):
 
         return result
+
+    # ------------------------------------------------------------
+    # Clip extreme values instead of discarding them.
+    #
+    # This prevents P2-P98 filtering from creating large empty
+    # areas in the final map.
+    # ------------------------------------------------------------
+
+    clipped = np.clip(
+        data,
+        p2,
+        p98
+    )
+
+    # ------------------------------------------------------------
+    # Five equal-width classes
+    # ------------------------------------------------------------
 
     edges = np.linspace(
         p2,
@@ -3378,7 +3393,7 @@ def classify_block(
 
     result[valid] = (
         np.digitize(
-            data[valid],
+            clipped[valid],
             internal_edges,
             right=False
         )
@@ -3522,7 +3537,7 @@ def create_classified_raster(
 
 
 # ================================================================
-# RASTER-LEVEL CLEANUP
+# RASTER-LEVEL CLEANUP AND SMOOTHING
 # ================================================================
 
 def cleanup_classified_raster(
@@ -3533,7 +3548,7 @@ def cleanup_classified_raster(
 
     print()
     print(
-        "Raster-level cleanup..."
+        "Raster-level cleanup and smoothing..."
     )
 
     from scipy import ndimage
@@ -3542,19 +3557,97 @@ def cleanup_classified_raster(
         input_path
     ) as src:
 
-        data = src.read(
-            1
-        )
+        data = src.read(1)
 
         profile = src.profile.copy()
 
+
+    # ------------------------------------------------------------
+    # Work on a copy
+    # ------------------------------------------------------------
+
     cleaned = data.copy()
+
+
+    # ============================================================
+    # STEP 1 — MAJORITY FILTER
+    # ============================================================
+    #
+    # This is the most important change.
+    #
+    # It removes isolated pixels and produces more coherent
+    # drought regions before polygonization.
+    #
+    # At 3 km resolution we use a 3x3 neighborhood.
+    #
+    # ============================================================
+
+    print(
+        "Applying majority filter..."
+    )
+
+    valid = (
+        cleaned > 0
+    )
+
+    if np.any(valid):
+
+        # --------------------------------------------------------
+        # Count each class in a 3x3 neighborhood
+        # --------------------------------------------------------
+
+        filtered = cleaned.copy()
+
+        for class_id in range(
+            1,
+            N_CLASSES + 1
+        ):
+
+            class_mask = (
+                cleaned == class_id
+            )
+
+            # Number of pixels belonging to this class
+            # in the 3x3 neighborhood.
+            neighborhood_count = (
+                ndimage.convolve(
+                    class_mask.astype(np.uint8),
+                    np.ones(
+                        (3, 3),
+                        dtype=np.uint8
+                    ),
+                    mode="constant",
+                    cval=0
+                )
+            )
+
+            # Require at least 5 of 9 neighboring pixels
+            # to belong to the class.
+            majority = (
+                neighborhood_count >= 5
+            )
+
+            filtered[
+                majority
+            ] = class_id
+
+        cleaned = filtered
+
+
+    # ============================================================
+    # STEP 2 — REMOVE SMALL CONNECTED REGIONS
+    # ============================================================
+
+    print(
+        "Removing small connected regions..."
+    )
 
     total_removed = 0
 
-    # ------------------------------------------------------------
-    # Process each class separately
-    # ------------------------------------------------------------
+    structure = np.ones(
+        (3, 3),
+        dtype=np.uint8
+    )
 
     for class_id in range(
         1,
@@ -3562,7 +3655,7 @@ def cleanup_classified_raster(
     ):
 
         class_mask = (
-            data == class_id
+            cleaned == class_id
         )
 
         if not np.any(
@@ -3570,12 +3663,6 @@ def cleanup_classified_raster(
         ):
 
             continue
-
-        # 8-connected neighborhood
-        structure = np.ones(
-            (3, 3),
-            dtype=np.uint8
-        )
 
         labels, num_features = (
             ndimage.label(
@@ -3616,8 +3703,7 @@ def cleanup_classified_raster(
         total_removed += removed
 
         print(
-            f"  Class {class_id} "
-            f"{CLASS_NAMES[class_id]}: "
+            f"  Class {class_id}: "
             f"removed {removed:,} pixels"
         )
 
@@ -3626,9 +3712,53 @@ def cleanup_classified_raster(
         del small_components
         del remove_mask
 
-    # ------------------------------------------------------------
-    # Write cleaned raster
-    # ------------------------------------------------------------
+
+    # ============================================================
+    # STEP 3 — FILL VERY SMALL INTERNAL HOLES
+    # ============================================================
+
+    print(
+        "Filling small internal holes..."
+    )
+
+    for class_id in range(
+        1,
+        N_CLASSES + 1
+    ):
+
+        class_mask = (
+            cleaned == class_id
+        )
+
+        if not np.any(
+            class_mask
+        ):
+
+            continue
+
+        # Fill holes inside this class.
+        filled = (
+            ndimage.binary_fill_holes(
+                class_mask
+            )
+        )
+
+        # Only fill locations that were previously
+        # empty and are completely surrounded.
+        new_pixels = (
+            filled
+            &
+            (~class_mask)
+        )
+
+        cleaned[
+            new_pixels
+        ] = class_id
+
+
+    # ============================================================
+    # WRITE OUTPUT
+    # ============================================================
 
     profile.update(
         driver="GTiff",
@@ -3658,6 +3788,8 @@ def cleanup_classified_raster(
             1
         )
 
+
+    print()
     print(
         f"Total pixels removed: "
         f"{total_removed:,}"
@@ -3667,6 +3799,7 @@ def cleanup_classified_raster(
         f"Cleaned raster saved: "
         f"{output_path}"
     )
+
 
     del data
     del cleaned
@@ -3875,12 +4008,32 @@ def polygonize_cleaned_raster(
             f"Simplifying by "
             f"{SIMPLIFY_TOLERANCE_M} m..."
         )
+        
+        # ------------------------------------------------------------
+        # Smooth raster-derived geometry
+        # ------------------------------------------------------------
 
-        dissolved["geometry"] = (
-            dissolved.geometry.simplify(
-                SIMPLIFY_TOLERANCE_M,
-                preserve_topology=True
+        if SIMPLIFY_TOLERANCE_M > 0:
+
+            print(
+                f"Smoothing polygons by "
+                f"{SIMPLIFY_TOLERANCE_M} m..."
             )
+
+            dissolved["geometry"] = (
+                dissolved.geometry
+                .buffer(
+                    SIMPLIFY_TOLERANCE_M,
+                    resolution=8
+                )
+                .buffer(
+                    -SIMPLIFY_TOLERANCE_M,
+                    resolution=8
+                )
+                .simplify(
+                    SIMPLIFY_TOLERANCE_M,
+                    preserve_topology=True
+                )
         )
 
     # ------------------------------------------------------------
@@ -4218,7 +4371,7 @@ WEB_CRS = "EPSG:4326"
 
 MIN_AREA_M2 = 5000.0
 
-SIMPLIFY_TOLERANCE_M = 20.0
+SIMPLIFY_TOLERANCE_M = 750
 
 
 def clean_geometry(
