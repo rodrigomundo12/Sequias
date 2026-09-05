@@ -1,4 +1,205 @@
+import base64
 import gzip
+
+# The updated HTML and JavaScript content for docs/vectors/index.html
+html_content = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>El Salvador Drought Monitoring</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<style>
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: Arial, sans-serif;
+}
+
+#map {
+  width: 100%;
+  height: 100%;
+}
+
+.legend {
+  background: white;
+  padding: 10px;
+  line-height: 22px;
+  border-radius: 6px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.25);
+  position: absolute; /* Needed for positioning with bottomright */
+  bottom: 10px; /* Adjust as needed */
+  right: 10px; /* Adjust as needed */
+  z-index: 1000; /* Ensure it's above the map */
+}
+
+.legend i {
+  width: 18px;
+  height: 18px;
+  float: left;
+  margin-right: 7px;
+  opacity: 0.8;
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+
+const map = L.map('map').setView([13.79, -88.9], 8);
+
+const openStreetMapLayer = L.tileLayer(
+  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  {
+    attribution: '&copy; OpenStreetMap contributors'
+  }
+);
+openStreetMapLayer.addTo(map);
+
+const classColors = {
+  1: '#d73027',
+  2: '#fc8d59',
+  3: '#ffffbf',
+  4: '#91cf60',
+  5: '#1a9850'
+};
+
+const classLabels = {
+  1: 'Very Low',
+  2: 'Low',
+  3: 'Normal',
+  4: 'High',
+  5: 'Very High'
+};
+
+function styleFeature(feature) {
+  const id = Number(feature.properties.class_id);
+  let fill = '#999999';
+  if (classColors[id]) {
+    fill = classColors[id];
+  }
+  return {
+    fillColor: fill,
+    weight: 0.5,
+    opacity: 1,
+    color: '#555555',
+    fillOpacity: 0.65
+  };
+}
+
+function onEachFeature(feature, layer) {
+  const p = feature.properties;
+  const className = p.class_name ? p.class_name : 'Unknown';
+  const indexName = p.index ? p.index : '';
+  let areaText = 'N/A';
+  if (p.area_m2 !== null && p.area_m2 !== undefined) {
+    areaText = Number(p.area_m2).toLocaleString(undefined, { maximumFractionDigits: 0 }) + ' m^2';
+  }
+  layer.bindPopup(
+    '<b>' + indexName + '</b><br>' +
+    '<b>Class:</b> ' + className + '<br>' +
+    '<b>Class ID:</b> ' + p.class_id + '<br>' +
+    '<b>Area:</b> ' + areaText
+  );
+
+  layer.on({
+    mouseover: function(e) {
+      e.target.setStyle({ weight: 2, color: '#000000' });
+      e.target.bringToFront();
+    },
+    mouseout: function(e) {
+      e.target.setStyle({ weight: 0.5, color: '#555555' });
+    }
+  });
+}
+
+
+let overlayLayers = {};
+const geojsonFiles = ['NDDI', 'MNDWI', 'NMDI', 'NDII', 'NDVI'];
+let loadedLayerGroup = L.featureGroup(); // To keep track of all loaded layers for fitting bounds
+
+const promises = geojsonFiles.map(indexName => {
+    return fetch('vectors/' + indexName + '.geojson')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status + ' for ' + indexName + '.geojson');
+            }
+            return response.json();
+        })
+        .then(data => {
+            const geojsonLayer = L.geoJSON(data, {
+                style: styleFeature,
+                onEachFeature: onEachFeature
+            });
+            overlayLayers[indexName] = geojsonLayer;
+            loadedLayerGroup.addLayer(geojsonLayer); // Add to feature group for bounds calculation
+        })
+        .catch(error => {
+            console.error('Error loading GeoJSON for ' + indexName + ':', error);
+            // Optionally, add a marker or error message on the map
+        });
+});
+
+Promise.all(promises).then(() => {
+    const baseMaps = {
+        "OpenStreetMap": openStreetMapLayer
+    };
+
+    L.control.layers(baseMaps, overlayLayers).addTo(map);
+
+    // Add NDDI layer to map by default (can choose another default or none)
+    if (overlayLayers['NDDI']) {
+        overlayLayers['NDDI'].addTo(map);
+    }
+
+    // Fit map to bounds of all loaded GeoJSON layers
+    if (loadedLayerGroup.getBounds().isValid()) {
+        map.fitBounds(loadedLayerGroup.getBounds(), { padding: [20, 20] });
+    }
+
+    // Initialize legend
+    const legend = L.control({ position: 'bottomright' });
+    legend.onAdd = function(map) {
+        const div = L.DomUtil.create('div', 'legend');
+        div.innerHTML = '<b>Drought class</b><br>';
+        for (let i = 1; i <= 5; i++) {
+            div.innerHTML += '<i style="background:' + classColors[i] + '"></i>' + classLabels[i] + '<br>';
+        }
+        return div;
+    };
+    legend.addTo(map);
+
+}).catch(error => {
+    console.error("One or more GeoJSON layers failed to load:", error);
+    // Display a global error message on the page or map
+    alert("Failed to load some map layers. Check console for details.");
+});
+
+</script>
+
+</body>
+</html>
+"""
+
+# Encode and compress the HTML content
+compressed_content = gzip.compress(html_content.encode('utf-8'))
+base64_encoded_content = base64.b64encode(compressed_content).decode('ascii')
+
+# Now, construct the full YAML output
+yaml_output = f"""
 name: Drought Monitoring - Local Windows
 
 on:
@@ -428,3 +629,6 @@ jobs:
           echo.
           echo GitHub Pages:
           echo https://rodrigomundo12.github.io/Sequias/
+""".format(base64_encoded_content=base64_encoded_content)
+
+print(yaml_output)
