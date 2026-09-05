@@ -109,7 +109,7 @@ jobs:
       # 2. PREPARE GITHUB PAGES
       # ============================================================
 
-      - name: Prepare GitHub Pages
+            - name: Prepare GitHub Pages
         shell: powershell
         run: |
           Write-Host "=============================================="
@@ -124,11 +124,6 @@ jobs:
           Write-Host "Project directory:"
           Write-Host $PROJECT_ROOT
 
-
-          # ========================================================
-          # CLEAN PREVIOUS WEB VECTORS
-          # ========================================================
-
           Write-Host ""
           Write-Host "Cleaning previous web vectors..."
 
@@ -138,14 +133,9 @@ jobs:
 
           New-Item -ItemType Directory -Path "docs\vectors" -Force | Out-Null
 
-
-          # ========================================================
-          # CHECK WEB PRODUCTS
-          # ========================================================
-
           Write-Host ""
           Write-Host "=============================================="
-          Write-Host "CHECKING WEB PRODUCTS"
+          Write-Host "COPYING LATEST GEOJSON FILES"
           Write-Host "=============================================="
 
           $products = @(
@@ -159,44 +149,22 @@ jobs:
           foreach ($product in $products) {
 
               $source = "distribution\latest\vectors\$product.geojson"
+              $destination = "docs\vectors\$product.geojson"
+
+              Write-Host "Checking: $source"
 
               if (-not (Test-Path $source)) {
-                  Write-Host "ERROR: $source not found."
+                  Write-Error "Missing GeoJSON: $source"
                   exit 1
               }
-          }
-
-          Write-Host ""
-          Write-Host "All five web products found."
-
-
-          # ========================================================
-          # COPY WEB PRODUCTS
-          # ========================================================
-
-          Write-Host ""
-          Write-Host "=============================================="
-          Write-Host "COPYING WEB VECTOR PRODUCTS"
-          Write-Host "=============================================="
-
-          foreach ($product in $products) {
-
-              $source = "distribution\latest\vectors\$product.geojson"
-              $destination = "docs\vectors\$product.geojson"
 
               Copy-Item $source $destination -Force
 
-              if (-not (Test-Path $destination)) {
-                  Write-Host "ERROR: Could not copy $product.geojson"
-                  exit 1
-              }
-
-              Write-Host "Copied $product.geojson"
+              Write-Host "Copied: $product.geojson"
           }
 
           Write-Host ""
-          Write-Host "Web vector products copied successfully."
-
+          Write-Host "GeoJSON files copied successfully."
 
           # ========================================================
           # CREATE INTERACTIVE LEAFLET MAP
