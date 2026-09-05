@@ -112,11 +112,12 @@ jobs:
           echo DROUGHT MONITORING COMPLETED SUCCESSFULLY
           echo ==============================================
 
+
       # ============================================================
       # 2. PREPARE GITHUB PAGES
       # ============================================================
 
-            - name: Prepare GitHub Pages
+      - name: Prepare GitHub Pages
         shell: powershell
         run: |
           Write-Host "=============================================="
@@ -182,24 +183,23 @@ jobs:
           Write-Host "CREATING INTERACTIVE LEAFLET MAP"
           Write-Host "=============================================="
 
-
           $html = @'
-	  <!DOCTYPE html>
-	  <html lang="en">
+          <!DOCTYPE html>
+          <html lang="en">
 
-	  <head>
+          <head>
 
-	  <meta charset="UTF-8">
+          <meta charset="UTF-8">
 
-	  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-	  <title>El Salvador Drought Monitoring Map</title>
+          <title>El Salvador Drought Monitoring Map</title>
 
-	  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+          <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
-	  <style>
+          <style>
 
-	  html,
+          html,
           body {
               height: 100%;
               margin: 0;
@@ -336,309 +336,310 @@ jobs:
               };
           }
 
-function onEachFeature(feature, layer) {
 
-    const p = feature.properties || {};
+          function onEachFeature(feature, layer) {
 
-    const cls =
-        p.class_name ||
-        classNames[p.class_id] ||
-        "Unknown";
+              const p = feature.properties || {};
 
-    const area =
-        p.area_m2 != null
-            ? Number(p.area_m2).toLocaleString(
-                  undefined,
-                  {
-                      maximumFractionDigits: 0
+              const cls =
+                  p.class_name ||
+                  classNames[p.class_id] ||
+                  "Unknown";
+
+              const area =
+                  p.area_m2 != null
+                      ? Number(p.area_m2).toLocaleString(
+                            undefined,
+                            {
+                                maximumFractionDigits: 0
+                            }
+                        ) + " m²"
+                      : "N/A";
+
+              const min =
+                  p.min_value != null
+                      ? Number(p.min_value).toFixed(4)
+                      : "N/A";
+
+              const max =
+                  p.max_value != null
+                      ? Number(p.max_value).toFixed(4)
+                      : "N/A";
+
+              layer.bindPopup(
+                  "<strong>El Salvador Drought Monitoring</strong>" +
+                  "<br><br>" +
+                  "<b>Index:</b> " +
+                  (p.index || "N/A") +
+                  "<br>" +
+                  "<b>Class:</b> " +
+                  cls +
+                  "<br>" +
+                  "<b>Area:</b> " +
+                  area +
+                  "<br>" +
+                  "<b>Minimum:</b> " +
+                  min +
+                  "<br>" +
+                  "<b>Maximum:</b> " +
+                  max
+              );
+          }
+
+
+          async function loadAllLayers() {
+
+              const status =
+                  document.getElementById("status");
+
+              status.textContent =
+                  "Loading drought products...";
+
+              console.log(
+                  "Loading five GeoJSON products..."
+              );
+
+              try {
+
+                  const promises = files.map(
+                      async function(name) {
+
+                          console.log(
+                              "Requesting " +
+                              name +
+                              ".geojson"
+                          );
+
+                          const response =
+                              await fetch(
+                                  name + ".geojson"
+                              );
+
+                          if (!response.ok) {
+
+                              throw new Error(
+                                  name +
+                                  ".geojson HTTP " +
+                                  response.status
+                              );
+                          }
+
+                          const data =
+                              await response.json();
+
+                          console.log(
+                              name +
+                              ".geojson loaded."
+                          );
+
+                          const layer =
+                              L.geoJSON(
+                                  data,
+                                  {
+                                      style: styleFeature,
+                                      onEachFeature: onEachFeature
+                                  }
+                              );
+
+                          overlayLayers[name] =
+                              layer;
+
+                          return layer;
+                      }
+                  );
+
+
+                  await Promise.all(promises);
+
+
+                  console.log(
+                      "ALL FIVE LAYERS LOADED."
+                  );
+
+
+                  const layerControl =
+                      L.control.layers(
+                          {
+                              "OpenStreetMap": osm
+                          },
+                          null,
+                          {
+                              collapsed: false,
+                              position: "topright"
+                          }
+                      ).addTo(map);
+
+
+                  layerControl.addOverlay(
+                      overlayLayers["NDDI"],
+                      "NDDI"
+                  );
+
+                  layerControl.addOverlay(
+                      overlayLayers["MNDWI"],
+                      "MNDWI"
+                  );
+
+                  layerControl.addOverlay(
+                      overlayLayers["NMDI"],
+                      "NMDI"
+                  );
+
+                  layerControl.addOverlay(
+                      overlayLayers["NDII"],
+                      "NDII"
+                  );
+
+                  layerControl.addOverlay(
+                      overlayLayers["NDVI"],
+                      "NDVI"
+                  );
+
+
+                  overlayLayers["NDDI"].addTo(map);
+
+
+                  const bounds =
+                      overlayLayers["NDDI"].getBounds();
+
+
+                  if (bounds.isValid()) {
+
+                      map.fitBounds(
+                          bounds,
+                          {
+                              padding: [20, 20]
+                          }
+                      );
                   }
-              ) + " m²"
-            : "N/A";
-
-    const min =
-        p.min_value != null
-            ? Number(p.min_value).toFixed(4)
-            : "N/A";
-
-    const max =
-        p.max_value != null
-            ? Number(p.max_value).toFixed(4)
-            : "N/A";
-
-    layer.bindPopup(
-        "<strong>El Salvador Drought Monitoring</strong>" +
-        "<br><br>" +
-        "<b>Index:</b> " +
-        (p.index || "N/A") +
-        "<br>" +
-        "<b>Class:</b> " +
-        cls +
-        "<br>" +
-        "<b>Area:</b> " +
-        area +
-        "<br>" +
-        "<b>Minimum:</b> " +
-        min +
-        "<br>" +
-        "<b>Maximum:</b> " +
-        max
-    );
-}
-
-
-async function loadAllLayers() {
-
-    const status =
-        document.getElementById("status");
-
-    status.textContent =
-        "Loading drought products...";
-
-    console.log(
-        "Loading five GeoJSON products..."
-    );
-
-    try {
-
-        const promises = files.map(
-            async function(name) {
-
-                console.log(
-                    "Requesting " +
-                    name +
-                    ".geojson"
-                );
-
-                const response =
-                    await fetch(
-                        name + ".geojson"
-                    );
-
-                if (!response.ok) {
-
-                    throw new Error(
-                        name +
-                        ".geojson HTTP " +
-                        response.status
-                    );
-                }
 
-                const data =
-                    await response.json();
 
-                console.log(
-                    name +
-                    ".geojson loaded."
-                );
+                  status.textContent =
+                      "5 / 5 drought products loaded";
 
-                const layer =
-                    L.geoJSON(
-                        data,
-                        {
-                            style: styleFeature,
-                            onEachFeature: onEachFeature
-                        }
-                    );
 
-                overlayLayers[name] =
-                    layer;
+                  console.log(
+                      "LAYER CONTROL READY"
+                  );
 
-                return layer;
-            }
-        );
+              }
 
+              catch (error) {
 
-        await Promise.all(promises);
+                  console.error(
+                      "ERROR LOADING DROUGHT PRODUCTS:",
+                      error
+                  );
 
+                  status.textContent =
+                      "ERROR: " +
+                      error.message;
+              }
+          }
 
-        console.log(
-            "ALL FIVE LAYERS LOADED."
-        );
 
+          const title =
+              L.control({
+                  position: "topleft"
+              });
 
-        const layerControl =
-            L.control.layers(
-                {
-                    "OpenStreetMap": osm
-                },
-                null,
-                {
-                    collapsed: false,
-                    position: "topright"
-                }
-            ).addTo(map);
 
+          title.onAdd =
+              function() {
 
-        layerControl.addOverlay(
-            overlayLayers["NDDI"],
-            "NDDI"
-        );
+                  const d =
+                      L.DomUtil.create(
+                          "div",
+                          "title-box"
+                      );
 
-        layerControl.addOverlay(
-            overlayLayers["MNDWI"],
-            "MNDWI"
-        );
+                  d.innerHTML =
+                      "<h1>El Salvador Drought Monitoring</h1>" +
+                      "<p>Sentinel-2 L2A drought indices</p>";
 
-        layerControl.addOverlay(
-            overlayLayers["NMDI"],
-            "NMDI"
-        );
+                  return d;
+              };
 
-        layerControl.addOverlay(
-            overlayLayers["NDII"],
-            "NDII"
-        );
 
-        layerControl.addOverlay(
-            overlayLayers["NDVI"],
-            "NDVI"
-        );
+          title.addTo(map);
 
 
-        overlayLayers["NDDI"].addTo(map);
+          const legend =
+              L.control({
+                  position: "bottomright"
+              });
 
 
-        const bounds =
-            overlayLayers["NDDI"].getBounds();
+          legend.onAdd =
+              function() {
 
+                  const d =
+                      L.DomUtil.create(
+                          "div",
+                          "legend"
+                      );
 
-        if (bounds.isValid()) {
+                  d.innerHTML =
+                      "<h4>Drought Classification</h4>";
 
-            map.fitBounds(
-                bounds,
-                {
-                    padding: [20, 20]
-                }
-            );
-        }
+                  for (
+                      let i = 1;
+                      i <= 5;
+                      i++
+                  ) {
 
+                      d.innerHTML +=
+                          "<div class='legend-item'>" +
+                          "<div class='legend-color' " +
+                          "style='background:" +
+                          classColors[i] +
+                          "'></div>" +
+                          classNames[i] +
+                          "</div>";
+                  }
 
-        status.textContent =
-            "5 / 5 drought products loaded";
+                  return d;
+              };
 
 
-        console.log(
-            "LAYER CONTROL READY"
-        );
+          legend.addTo(map);
 
-    }
 
-    catch (error) {
+          const info =
+              L.control({
+                  position: "bottomleft"
+              });
 
-        console.error(
-            "ERROR LOADING DROUGHT PRODUCTS:",
-            error
-        );
 
-        status.textContent =
-            "ERROR: " +
-            error.message;
-    }
-}
+          info.onAdd =
+              function() {
 
+                  const d =
+                      L.DomUtil.create(
+                          "div",
+                          "info-box"
+                      );
 
-const title =
-    L.control({
-        position: "topleft"
-    });
+                  d.id = "status";
 
+                  d.textContent =
+                      "Loading drought products...";
 
-title.onAdd =
-    function() {
+                  return d;
+              };
 
-        const d =
-            L.DomUtil.create(
-                "div",
-                "title-box"
-            );
 
-        d.innerHTML =
-            "<h1>El Salvador Drought Monitoring</h1>" +
-            "<p>Sentinel-2 L2A drought indices</p>";
+          info.addTo(map);
 
-        return d;
-    };
 
+          loadAllLayers();
 
-title.addTo(map);
+          </script>
 
+          </body>
 
-const legend =
-    L.control({
-        position: "bottomright"
-    });
-
-
-legend.onAdd =
-    function() {
-
-        const d =
-            L.DomUtil.create(
-                "div",
-                "legend"
-            );
-
-        d.innerHTML =
-            "<h4>Drought Classification</h4>";
-
-        for (
-            let i = 1;
-            i <= 5;
-            i++
-        ) {
-
-            d.innerHTML +=
-                "<div class='legend-item'>" +
-                "<div class='legend-color' " +
-                "style='background:" +
-                classColors[i] +
-                "'></div>" +
-                classNames[i] +
-                "</div>";
-        }
-
-        return d;
-    };
-
-
-legend.addTo(map);
-
-
-const info =
-    L.control({
-        position: "bottomleft"
-    });
-
-
-info.onAdd =
-    function() {
-
-        const d =
-            L.DomUtil.create(
-                "div",
-                "info-box"
-            );
-
-        d.id = "status";
-
-        d.textContent =
-            "Loading drought products...";
-
-        return d;
-    };
-
-
-info.addTo(map);
-
-
-loadAllLayers();
-
-</script>
-
-</body>
-
-</html>
-'@
+          </html>
+          '@
 
 
           # ========================================================
@@ -763,82 +764,82 @@ loadAllLayers();
 
 
           $html = @'
-<!DOCTYPE html>
-<html lang="en">
+          <!DOCTYPE html>
+          <html lang="en">
 
-<head>
+          <head>
 
-<meta charset="UTF-8">
+          <meta charset="UTF-8">
 
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>El Salvador Drought Monitoring</title>
+          <title>El Salvador Drought Monitoring</title>
 
-<style>
+          <style>
 
-body {
-    font-family: Arial, sans-serif;
-    margin: 40px;
-}
+          body {
+              font-family: Arial, sans-serif;
+              margin: 40px;
+          }
 
-h1 {
-    margin-bottom: 10px;
-}
+          h1 {
+              margin-bottom: 10px;
+          }
 
-.box {
-    padding: 20px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    max-width: 800px;
-}
+          .box {
+              padding: 20px;
+              border: 1px solid #ccc;
+              border-radius: 8px;
+              max-width: 800px;
+          }
 
-a {
-    text-decoration: none;
-}
+          a {
+              text-decoration: none;
+          }
 
-.map-button {
-    display: inline-block;
-    margin-top: 10px;
-    padding: 12px 18px;
-    background: #333;
-    color: white;
-    border-radius: 6px;
-}
+          .map-button {
+              display: inline-block;
+              margin-top: 10px;
+              padding: 12px 18px;
+              background: #333;
+              color: white;
+              border-radius: 6px;
+          }
 
-</style>
+          </style>
 
-</head>
+          </head>
 
-<body>
+          <body>
 
-<h1>El Salvador Drought Monitoring</h1>
+          <h1>El Salvador Drought Monitoring</h1>
 
-<div class="box">
+          <div class="box">
 
-<p>
-Automated drought-monitoring products derived from Sentinel-2 L2A.
-</p>
+          <p>
+          Automated drought-monitoring products derived from Sentinel-2 L2A.
+          </p>
 
-<p>
-Latest products are automatically updated by the local processing system.
-</p>
+          <p>
+          Latest products are automatically updated by the local processing system.
+          </p>
 
-<h2>Interactive Map</h2>
+          <h2>Interactive Map</h2>
 
-<p>
-Explore the latest drought-monitoring products interactively.
-</p>
+          <p>
+          Explore the latest drought-monitoring products interactively.
+          </p>
 
-<a class="map-button" href="vectors/">
-Open Interactive Map
-</a>
+          <a class="map-button" href="vectors/">
+          Open Interactive Map
+          </a>
 
-</div>
+          </div>
 
-</body>
+          </body>
 
-</html>
-'@
+          </html>
+          '@
 
 
           $htmlPath = "docs\index.html"
