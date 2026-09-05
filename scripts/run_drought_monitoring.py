@@ -4044,6 +4044,12 @@ print(
     latest_anomaly_path
 )
 
+# ================================================================
+# COLLECT POLYGONIZED OUTPUTS
+# Used by the web-optimized GeoJSON section below
+# ================================================================
+
+polygonized_outputs = []
 
 # ================================================================
 # PROCESS EACH INDEX
@@ -4239,7 +4245,7 @@ for band_idx, index_name in enumerate(
         p98=p98,
         index_name=index_name
     )
-
+    
     # ============================================================
     # STEP 2
     # CLEANUP
@@ -4265,6 +4271,16 @@ for band_idx, index_name in enumerate(
         p2=p2,
         p98=p98
     )
+    
+    # ============================================================
+    # REGISTER OUTPUT FOR WEB OPTIMIZATION
+    # ============================================================
+
+    if os.path.exists(output_gpkg):
+
+        polygonized_outputs.append(
+            output_gpkg
+        )
 
     # ============================================================
     # CLEAN MEMORY
