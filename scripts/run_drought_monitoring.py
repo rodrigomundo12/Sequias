@@ -3969,7 +3969,7 @@ def polygonize_cleaned_raster(
             f"Class {int(row['class_id'])}: "
             f"{row['class_name']} | "
             f"{int(row['polygons'])} polygons | "
-            f"{row['area_km2']:.2f} km²"
+            f"{row['area_km2']:.2f} km2"
         )
 
     print("-----------------------------------------------")
