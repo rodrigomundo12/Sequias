@@ -121,7 +121,7 @@ jobs:
         shell: powershell
         run: |
           Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-	  Write-Host "=============================================="
+          Write-Host "=============================================="
           Write-Host "PREPARING GITHUB PAGES"
           Write-Host "=============================================="
 
