@@ -3631,7 +3631,7 @@ def cleanup_classified_raster(
 
         cleaned = filtered
         '''
-
+'''
     # ============================================================
     # STEP 2 — REMOVE ONLY VERY SMALL CONNECTED REGIONS
     # ============================================================
@@ -3813,7 +3813,7 @@ def cleanup_classified_raster(
         del hole_sizes
         del tiny_holes
         del fill_mask
-
+'''
 
     # ============================================================
     # WRITE OUTPUT
