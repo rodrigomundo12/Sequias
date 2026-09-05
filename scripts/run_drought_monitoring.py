@@ -3582,7 +3582,7 @@ def cleanup_classified_raster(
     # more of the original spatial pattern.
     #
     # ============================================================
-
+    '''
     print(
         "Applying gentle majority filter..."
     )
@@ -3630,7 +3630,7 @@ def cleanup_classified_raster(
             ] = class_id
 
         cleaned = filtered
-
+        '''
 
     # ============================================================
     # STEP 2 — REMOVE ONLY VERY SMALL CONNECTED REGIONS
