@@ -754,7 +754,7 @@ jobs:
       - name: Create GitHub Pages index
         shell: powershell
         run: |
-	  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
           Write-Host "=============================================="
           Write-Host "CREATING GITHUB PAGES INDEX"
           Write-Host "=============================================="
