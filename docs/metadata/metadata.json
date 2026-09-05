@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-04T22:38:12.716229",
+  "generated_at": "2026-09-04T23:11:25.706861",
   "latest_complete_quarter": "Q1_May_Jul",
   "latest_hydrological_year": 2026,
   "hydrological_years": [
@@ -36,5 +36,5 @@
   },
   "minimum_polygon_area_m2": 144000,
   "web_minimum_polygon_area_m2": 5000.0,
-  "web_simplification_m": 20.0
+  "web_simplification_m": 750
 }
