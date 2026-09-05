@@ -69,39 +69,58 @@ jobs:
           echo ==============================================
 
           set "PYTHON_EXE=C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe"
+
           set "PROJECT_ROOT=C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos"
+
           set "SCRIPT=%PROJECT_ROOT%\scripts\run_drought_monitoring.py"
+
 
           echo.
           echo Python:
+
           "%PYTHON_EXE%" --version
+
 
           echo.
           echo Project:
+
           echo %PROJECT_ROOT%
+
 
           echo.
           echo Script:
+
           echo %SCRIPT%
 
+
           if not exist "%SCRIPT%" (
+
               echo.
               echo ERROR: run_drought_monitoring.py was not found.
+
               exit /b 1
+
           )
+
 
           echo.
           echo Running script...
 
+
           "%PYTHON_EXE%" "%SCRIPT%"
 
+
           if errorlevel 1 (
+
               echo.
               echo ==============================================
               echo DROUGHT MONITORING FAILED
               echo ==============================================
+
               exit /b 1
+
           )
+
 
           echo.
           echo ==============================================
@@ -109,8 +128,6 @@ jobs:
           echo ==============================================
 
 
-      
-      
       # ============================================================
       # 2. PREPARE GITHUB PAGES FILES
       # ============================================================
@@ -123,13 +140,18 @@ jobs:
           Write-Host "PREPARING GITHUB PAGES"
           Write-Host "=============================================="
 
-          $PROJECT_ROOT = "C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos"
+
+          $PROJECT_ROOT =
+              "C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos"
+
 
           Set-Location $PROJECT_ROOT
+
 
           Write-Host ""
           Write-Host "Project directory:"
           Write-Host $PROJECT_ROOT
+
 
           # ========================================================
           # CLEAN PREVIOUS WEB VECTORS
@@ -138,11 +160,22 @@ jobs:
           Write-Host ""
           Write-Host "Cleaning previous web vectors..."
 
+
           if (Test-Path "docs\vectors") {
-              Remove-Item "docs\vectors" -Recurse -Force
+
+              Remove-Item `
+                  "docs\vectors" `
+                  -Recurse `
+                  -Force
+
           }
 
-          New-Item -ItemType Directory -Path "docs\vectors" -Force | Out-Null
+
+          New-Item `
+              -ItemType Directory `
+              -Path "docs\vectors" `
+              -Force |
+              Out-Null
 
 
           # ========================================================
@@ -154,24 +187,35 @@ jobs:
           Write-Host "CHECKING WEB PRODUCTS"
           Write-Host "=============================================="
 
+
           $products = @(
-              "NDDI",
-              "MNDWI",
-              "NMDI",
-              "NDII",
+
+              "NDDI"
+              "MNDWI"
+              "NMDI"
+              "NDII"
               "NDVI"
+
           )
+
 
           foreach ($product in $products) {
 
-              $source = "distribution\latest\vectors\$product.geojson"
+              $source =
+                  "distribution\latest\vectors\$product.geojson"
+
 
               if (-not (Test-Path $source)) {
+
+                  Write-Host ""
                   Write-Host "ERROR: $source not found."
+
                   exit 1
+
               }
 
           }
+
 
           Write-Host ""
           Write-Host "All five web products found."
@@ -186,21 +230,37 @@ jobs:
           Write-Host "COPYING WEB VECTOR PRODUCTS"
           Write-Host "=============================================="
 
+
           foreach ($product in $products) {
 
-              $source = "distribution\latest\vectors\$product.geojson"
-              $destination = "docs\vectors\$product.geojson"
+              $source =
+                  "distribution\latest\vectors\$product.geojson"
 
-              Copy-Item $source $destination -Force
+
+              $destination =
+                  "docs\vectors\$product.geojson"
+
+
+              Copy-Item `
+                  $source `
+                  $destination `
+                  -Force
+
 
               if (-not (Test-Path $destination)) {
+
+                  Write-Host ""
                   Write-Host "ERROR: Could not copy $product.geojson"
+
                   exit 1
+
               }
+
 
               Write-Host "Copied $product.geojson"
 
           }
+
 
           Write-Host ""
           Write-Host "Web vector products copied successfully."
@@ -218,6 +278,7 @@ jobs:
 
           $html = @'
 <!DOCTYPE html>
+
 <html lang="en">
 
 <head>
@@ -229,158 +290,261 @@ jobs:
 
 <title>El Salvador Drought Monitoring Map</title>
 
+
 <link rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
 
 <style>
 
 html,
 body {
+
     height: 100%;
     margin: 0;
     padding: 0;
+
     font-family: Arial, sans-serif;
+
 }
 
+
 #map {
+
     width: 100%;
     height: 100vh;
+
 }
+
 
 .title-box,
 .legend,
 .info-box {
+
     background: white;
+
     padding: 10px 14px;
+
     border-radius: 6px;
-    box-shadow: 0 1px 5px rgba(0,0,0,0.3);
+
+    box-shadow:
+        0 1px 5px rgba(0,0,0,0.3);
+
 }
+
 
 .title-box h1 {
+
     margin: 0;
+
     font-size: 18px;
+
 }
+
 
 .title-box p {
+
     margin: 5px 0 0;
+
     font-size: 12px;
+
 }
+
 
 .legend {
+
     line-height: 20px;
+
 }
+
 
 .legend h4 {
+
     margin: 0 0 6px;
+
 }
+
 
 .legend-item {
+
     display: flex;
+
     align-items: center;
+
 }
+
 
 .legend-color {
+
     width: 18px;
+
     height: 18px;
+
     margin-right: 7px;
+
     border: 1px solid #777;
+
 }
+
 
 .info-box {
+
     min-width: 170px;
+
 }
+
 
 .leaflet-control-layers {
+
     font-size: 14px;
+
 }
 
+
 .leaflet-control-layers-expanded {
+
     padding: 8px 12px;
+
 }
 
 </style>
 
 </head>
 
+
 <body>
+
 
 <div id="map"></div>
 
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 
 <script>
 
-console.log("==============================================");
-console.log("EL SALVADOR DROUGHT MONITORING MAP");
-console.log("==============================================");
+
+console.log(
+    "=============================================="
+);
+
+console.log(
+    "EL SALVADOR DROUGHT MONITORING MAP"
+);
+
+console.log(
+    "=============================================="
+);
+
 
 
 /* ============================================================
    MAP
    ============================================================ */
 
+
 const map = L.map("map", {
+
     center: [13.7942, -88.8965],
+
     zoom: 8
+
 });
+
 
 
 /* ============================================================
    OPENSTREETMAP
    ============================================================ */
 
+
 const osm = L.tileLayer(
+
     "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+
     {
+
         maxZoom: 19,
-        attribution: "&copy; OpenStreetMap contributors"
+
+        attribution:
+            "&copy; OpenStreetMap contributors"
+
     }
+
 ).addTo(map);
+
 
 
 /* ============================================================
    CLASSIFICATION
    ============================================================ */
 
+
 const classColors = {
+
     1: "#8B0000",
+
     2: "#FF8C00",
+
     3: "#FFFF66",
+
     4: "#90EE90",
+
     5: "#006400"
+
 };
 
+
 const classNames = {
+
     1: "Very Low",
+
     2: "Low",
+
     3: "Normal",
+
     4: "High",
+
     5: "Very High"
+
 };
+
 
 
 /* ============================================================
    LAYER STORAGE
    ============================================================ */
 
+
 const overlayLayers = {};
 
+
 const files = [
+
     "NDDI",
+
     "MNDWI",
+
     "NMDI",
+
     "NDII",
+
     "NDVI"
+
 ];
+
 
 
 /* ============================================================
    STYLE
    ============================================================ */
 
+
 function styleFeature(feature) {
 
-    const id = feature.properties?.class_id;
+    const id =
+        feature.properties?.class_id;
+
 
     return {
 
@@ -394,42 +558,66 @@ function styleFeature(feature) {
             classColors[id] || "#999",
 
         fillOpacity: 0.65
+
     };
+
 }
+
 
 
 /* ============================================================
    POPUP
    ============================================================ */
 
+
 function onEachFeature(feature, layer) {
 
-    const p = feature.properties || {};
+    const p =
+        feature.properties || {};
+
 
     const cls =
         p.class_name ||
         classNames[p.class_id] ||
         "Unknown";
 
+
     const area =
+
         p.area_m2 != null
+
             ? Number(p.area_m2).toLocaleString(
+
                   undefined,
+
                   {
+
                       maximumFractionDigits: 0
+
                   }
+
               ) + " m²"
+
             : "N/A";
+
 
     const min =
+
         p.min_value != null
+
             ? Number(p.min_value).toFixed(4)
+
             : "N/A";
 
+
     const max =
+
         p.max_value != null
+
             ? Number(p.max_value).toFixed(4)
+
             : "N/A";
+
 
     layer.bindPopup(
 
@@ -438,39 +626,50 @@ function onEachFeature(feature, layer) {
         "<br><br>" +
 
         "<b>Index:</b> " +
+
         (p.index || "N/A") +
 
         "<br>" +
 
         "<b>Class:</b> " +
+
         cls +
 
         "<br>" +
 
         "<b>Area:</b> " +
+
         area +
 
         "<br>" +
 
         "<b>Minimum:</b> " +
+
         min +
 
         "<br>" +
 
         "<b>Maximum:</b> " +
+
         max
+
     );
+
 }
+
 
 
 /* ============================================================
    LOAD ALL FIVE LAYERS
    ============================================================ */
 
+
 async function loadAllLayers() {
+
 
     const status =
         document.getElementById("status");
+
 
     status.textContent =
         "Loading drought products...";
@@ -483,8 +682,11 @@ async function loadAllLayers() {
 
     try {
 
+
         const promises = files.map(
+
             async function(name) {
+
 
                 console.log(
                     "Requesting " +
@@ -494,6 +696,7 @@ async function loadAllLayers() {
 
 
                 const response =
+
                     await fetch(
                         name + ".geojson"
                     );
@@ -502,9 +705,11 @@ async function loadAllLayers() {
                 if (!response.ok) {
 
                     throw new Error(
+
                         name +
                         ".geojson HTTP " +
                         response.status
+
                     );
 
                 }
@@ -515,19 +720,29 @@ async function loadAllLayers() {
 
 
                 console.log(
+
                     name +
                     ".geojson loaded."
+
                 );
 
 
                 const layer =
+
                     L.geoJSON(
+
                         data,
+
                         {
-                            style: styleFeature,
+
+                            style:
+                                styleFeature,
+
                             onEachFeature:
                                 onEachFeature
+
                         }
+
                     );
 
 
@@ -536,13 +751,16 @@ async function loadAllLayers() {
 
 
                 return layer;
+
             }
+
         );
 
 
         /* ========================================================
            WAIT FOR ALL FIVE FILES
            ======================================================== */
+
 
         await Promise.all(promises);
 
@@ -557,9 +775,11 @@ async function loadAllLayers() {
         );
 
 
+
         /* ========================================================
            CREATE LAYER CONTROL
            ======================================================== */
+
 
         const baseMaps = {
 
@@ -569,6 +789,7 @@ async function loadAllLayers() {
 
 
         const layerControl =
+
             L.control.layers(
 
                 baseMaps,
@@ -576,73 +797,81 @@ async function loadAllLayers() {
                 null,
 
                 {
+
                     collapsed: false,
+
                     position: "topright"
+
                 }
 
             ).addTo(map);
 
 
+
         /* ========================================================
-           ADD NDDI
+           ADD ALL FIVE OVERLAYS
            ======================================================== */
 
+
         layerControl.addOverlay(
+
             overlayLayers["NDDI"],
+
             "NDDI"
+
         );
 
 
-        /* ========================================================
-           ADD MNDWI
-           ======================================================== */
-
         layerControl.addOverlay(
+
             overlayLayers["MNDWI"],
+
             "MNDWI"
+
         );
 
 
-        /* ========================================================
-           ADD NMDI
-           ======================================================== */
-
         layerControl.addOverlay(
+
             overlayLayers["NMDI"],
+
             "NMDI"
+
         );
 
 
-        /* ========================================================
-           ADD NDII
-           ======================================================== */
-
         layerControl.addOverlay(
+
             overlayLayers["NDII"],
+
             "NDII"
+
         );
 
-
-        /* ========================================================
-           ADD NDVI
-           ======================================================== */
 
         layerControl.addOverlay(
+
             overlayLayers["NDVI"],
+
             "NDVI"
+
         );
+
 
 
         /* ========================================================
            SHOW ONLY NDDI INITIALLY
            ======================================================== */
 
+
         overlayLayers["NDDI"].addTo(map);
+
 
 
         /* ========================================================
            FIT MAP TO NDDI
            ======================================================== */
+
 
         const bounds =
             overlayLayers["NDDI"].getBounds();
@@ -651,13 +880,24 @@ async function loadAllLayers() {
         if (bounds.isValid()) {
 
             map.fitBounds(
+
                 bounds,
+
                 {
+
                     padding: [20, 20]
+
                 }
+
             );
 
         }
+
+
+
+        /* ========================================================
+           STATUS
+           ======================================================== */
 
 
         status.textContent =
@@ -668,17 +908,21 @@ async function loadAllLayers() {
             "=============================================="
         );
 
+
         console.log(
             "LAYER CONTROL READY"
         );
+
 
         console.log(
             "Available indexes:"
         );
 
+
         console.log(
             "NDDI, MNDWI, NMDI, NDII, NDVI"
         );
+
 
         console.log(
             "=============================================="
@@ -689,9 +933,13 @@ async function loadAllLayers() {
 
     catch (error) {
 
+
         console.error(
+
             "ERROR LOADING DROUGHT PRODUCTS:",
+
             error
+
         );
 
 
@@ -704,67 +952,98 @@ async function loadAllLayers() {
 }
 
 
+
 /* ============================================================
    TITLE
    ============================================================ */
 
+
 const title =
+
     L.control({
+
         position: "topleft"
+
     });
 
 
 title.onAdd =
+
     function() {
 
+
         const d =
+
             L.DomUtil.create(
+
                 "div",
+
                 "title-box"
+
             );
 
 
         d.innerHTML =
+
             "<h1>El Salvador Drought Monitoring</h1>" +
+
             "<p>Sentinel-2 L2A drought indices</p>";
 
 
         return d;
+
     };
 
 
 title.addTo(map);
 
 
+
 /* ============================================================
    LEGEND
    ============================================================ */
 
+
 const legend =
+
     L.control({
+
         position: "bottomright"
+
     });
 
 
 legend.onAdd =
+
     function() {
 
+
         const d =
+
             L.DomUtil.create(
+
                 "div",
+
                 "legend"
+
             );
 
 
         d.innerHTML =
+
             "<h4>Drought Classification</h4>";
 
 
         for (
+
             let i = 1;
+
             i <= 5;
+
             i++
+
         ) {
+
 
             d.innerHTML +=
 
@@ -773,39 +1052,54 @@ legend.onAdd =
                 "<div class='legend-color' " +
 
                 "style='background:" +
+
                 classColors[i] +
+
                 "'></div>" +
 
                 classNames[i] +
 
                 "</div>";
+
         }
 
 
         return d;
+
     };
 
 
 legend.addTo(map);
 
 
+
 /* ============================================================
    STATUS BOX
    ============================================================ */
 
+
 const info =
+
     L.control({
+
         position: "bottomleft"
+
     });
 
 
 info.onAdd =
+
     function() {
 
+
         const d =
+
             L.DomUtil.create(
+
                 "div",
+
                 "info-box"
+
             );
 
 
@@ -817,17 +1111,21 @@ info.onAdd =
 
 
         return d;
+
     };
 
 
 info.addTo(map);
 
 
+
 /* ============================================================
    START
    ============================================================ */
 
+
 loadAllLayers();
+
 
 </script>
 
@@ -841,7 +1139,10 @@ loadAllLayers();
           # WRITE HTML FILE
           # ========================================================
 
-          $htmlPath = "docs\vectors\index.html"
+
+          $htmlPath =
+              "docs\vectors\index.html"
+
 
           Set-Content `
               -Path $htmlPath `
@@ -853,6 +1154,7 @@ loadAllLayers();
 
               Write-Host ""
               Write-Host "ERROR: Could not create interactive map."
+
               exit 1
 
           }
@@ -862,9 +1164,11 @@ loadAllLayers();
           Write-Host "Interactive Leaflet map created successfully."
 
 
+
           # ========================================================
           # VERIFY WEB FILES
           # ========================================================
+
 
           Write-Host ""
           Write-Host "=============================================="
@@ -876,6 +1180,7 @@ loadAllLayers();
 
 
           $mapText =
+
               Get-Content `
                   "docs\vectors\index.html" `
                   -Raw
@@ -883,69 +1188,113 @@ loadAllLayers();
 
           Write-Host ""
           Write-Host "Map HTML size:"
+
+
           Write-Host (
+
               (Get-Item "docs\vectors\index.html").Length
+
           )
 
 
           Write-Host ""
           Write-Host "Leaflet detected:"
+
+
           Write-Host (
-              $mapText.Contains("leaflet@1.9.4")
+
+              $mapText.Contains(
+                  "leaflet@1.9.4"
+              )
+
           )
 
 
           Write-Host "NDDI detected:"
+
+
           Write-Host (
+
               $mapText.Contains("NDDI")
+
           )
 
 
           Write-Host "MNDWI detected:"
+
+
           Write-Host (
+
               $mapText.Contains("MNDWI")
+
           )
 
 
           Write-Host "NMDI detected:"
+
+
           Write-Host (
+
               $mapText.Contains("NMDI")
+
           )
 
 
           Write-Host "NDII detected:"
+
+
           Write-Host (
+
               $mapText.Contains("NDII")
+
           )
 
 
           Write-Host "NDVI detected:"
+
+
           Write-Host (
+
               $mapText.Contains("NDVI")
+
           )
 
 
           Write-Host "Promise.all detected:"
+
+
           Write-Host (
+
               $mapText.Contains("Promise.all")
+
           )
 
 
           Write-Host "addOverlay detected:"
+
+
           Write-Host (
+
               $mapText.Contains("addOverlay")
+
           )
 
 
           Write-Host "Layer control detected:"
+
+
           Write-Host (
+
               $mapText.Contains("L.control.layers")
+
           )
+
 
 
           # ========================================================
           # COPY METADATA
           # ========================================================
+
 
           Write-Host ""
           Write-Host "=============================================="
@@ -979,6 +1328,7 @@ loadAllLayers();
                   -Force
 
           }
+
           else {
 
               Write-Host "WARNING: No metadata directory found."
@@ -992,58 +1342,172 @@ loadAllLayers();
           Write-Host "=============================================="
 
 
+
       # ============================================================
       # 3. CREATE GITHUB PAGES LANDING PAGE
       # ============================================================
 
       - name: Create GitHub Pages index
-        shell: cmd
+        shell: powershell
         run: |
 
-          echo ==============================================
-          echo CREATING GITHUB PAGES INDEX
-          echo ==============================================
+          Write-Host "=============================================="
+          Write-Host "CREATING GITHUB PAGES INDEX"
+          Write-Host "=============================================="
 
-          set "PROJECT_ROOT=C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos"
 
-          cd /d "%PROJECT_ROOT%"
+          $PROJECT_ROOT =
+              "C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos"
 
-          (
-            echo ^<!DOCTYPE html^>
-            echo ^<html lang="en"^>
-            echo ^<head^>
-            echo ^<meta charset="UTF-8"^>
-            echo ^<meta name="viewport" content="width=device-width, initial-scale=1.0"^>
-            echo ^<title^>El Salvador Drought Monitoring^</title^>
-            echo ^<style^>
-            echo body { font-family: Arial, sans-serif; margin: 40px; }
-            echo h1 { margin-bottom: 10px; }
-            echo .box { padding: 20px; border: 1px solid #ccc; border-radius: 8px; max-width: 800px; }
-            echo a { text-decoration: none; }
-            echo .map-button { display: inline-block; margin-top: 10px; padding: 12px 18px; background: #333; color: white; border-radius: 6px; }
-            echo ^</style^>
-            echo ^</head^>
-            echo ^<body^>
-            echo ^<h1^>El Salvador Drought Monitoring^</h1^>
-            echo ^<div class="box"^>
-            echo ^<p^>Automated drought-monitoring products derived from Sentinel-2 L2A.^</p^>
-            echo ^<p^>Latest products are automatically updated by the local processing system.^</p^>
-            echo ^<h2^>Interactive Map^</h2^>
-            echo ^<p^>Explore the latest drought-monitoring products interactively.^</p^>
-            echo ^<a class="map-button" href="vectors/"^>Open Interactive Map^</a^>
-            echo ^</div^>
-            echo ^</body^>
-            echo ^</html^>
-          ) > "docs\index.html"
 
-          if errorlevel 1 (
-              echo.
-              echo ERROR: Could not create GitHub Pages landing page.
-              exit /b 1
-          )
+          Set-Location $PROJECT_ROOT
 
-          echo.
-          echo GitHub Pages landing page created.
+
+          $html = @'
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
+
+<title>El Salvador Drought Monitoring</title>
+
+
+<style>
+
+body {
+
+    font-family: Arial, sans-serif;
+
+    margin: 40px;
+
+}
+
+
+h1 {
+
+    margin-bottom: 10px;
+
+}
+
+
+.box {
+
+    padding: 20px;
+
+    border: 1px solid #ccc;
+
+    border-radius: 8px;
+
+    max-width: 800px;
+
+}
+
+
+a {
+
+    text-decoration: none;
+
+}
+
+
+.map-button {
+
+    display: inline-block;
+
+    margin-top: 10px;
+
+    padding: 12px 18px;
+
+    background: #333;
+
+    color: white;
+
+    border-radius: 6px;
+
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<h1>El Salvador Drought Monitoring</h1>
+
+
+<div class="box">
+
+
+<p>
+Automated drought-monitoring products derived from Sentinel-2 L2A.
+</p>
+
+
+<p>
+Latest products are automatically updated by the local processing system.
+</p>
+
+
+<h2>Interactive Map</h2>
+
+
+<p>
+Explore the latest drought-monitoring products interactively.
+</p>
+
+
+<a class="map-button"
+   href="vectors/">
+
+   Open Interactive Map
+
+</a>
+
+
+</div>
+
+
+</body>
+
+</html>
+'@
+
+
+          $htmlPath =
+              "docs\index.html"
+
+
+          Set-Content `
+              -Path $htmlPath `
+              -Value $html `
+              -Encoding UTF8
+
+
+          if (-not (Test-Path $htmlPath)) {
+
+              Write-Host ""
+              Write-Host "ERROR: Could not create GitHub Pages landing page."
+
+              exit 1
+
+          }
+
+
+          Write-Host ""
+          Write-Host "GitHub Pages landing page created successfully."
+
+          Write-Host ""
+          Write-Host "Landing page:"
+          Write-Host $htmlPath
+
 
 
       # ============================================================
@@ -1058,67 +1522,94 @@ loadAllLayers();
           echo COMMITTING WEB PRODUCTS
           echo ==============================================
 
+
           set "PROJECT_ROOT=C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos"
 
+
           cd /d "%PROJECT_ROOT%"
+
 
           echo.
           echo Git repository:
 
+
           git rev-parse --show-toplevel
+
 
           echo.
           echo Git status:
 
+
           git status
+
 
           echo.
           echo Adding docs...
 
+
           git add docs
+
 
           echo.
           echo Checking staged changes...
 
+
           git diff --cached --quiet
+
 
           if not errorlevel 1 (
 
               echo.
               echo No changes detected.
               echo Nothing to commit.
+
               exit /b 0
 
           )
 
+
           echo.
           echo Creating commit...
 
+
           git commit -m "Add interactive drought monitoring map"
 
+
           if errorlevel 1 (
+
               echo.
               echo ERROR: Git commit failed.
+
               exit /b 1
+
           )
+
 
           echo.
           echo Pushing to GitHub...
 
+
           git push origin main
 
+
           if errorlevel 1 (
+
               echo.
               echo ERROR: Git push failed.
+
               exit /b 1
+
           )
+
 
           echo.
           echo ==============================================
           echo WEB PRODUCTS PUBLISHED SUCCESSFULLY
           echo ==============================================
 
+
           echo.
           echo GitHub Pages:
+
           echo https://rodrigomundo12.github.io/Sequias/
 
