@@ -3,520 +3,664 @@
 
 <head>
 
-<meta charset="UTF-8">
+    <meta charset="UTF-8">
 
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-<title>El Salvador Drought Monitoring Map</title>
+    <title>El Salvador Drought Monitoring</title>
 
-<link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    >
 
-<style>
+    <style>
 
-html,
-body {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    font-family: Arial, sans-serif;
-}
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+        }
 
-#map {
-    width: 100%;
-    height: 100vh;
-}
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
 
-.title-box,
-.legend,
-.info-box {
-    background: white;
-    padding: 10px 14px;
-    border-radius: 6px;
-    box-shadow: 0 1px 5px rgba(0,0,0,0.3);
-}
+        /* -------------------------------------------------------
+           INDEX CONTROL
+           ------------------------------------------------------- */
 
-.title-box h1 {
-    margin: 0;
-    font-size: 18px;
-}
+        .index-control {
+            background: white;
+            padding: 10px 12px;
+            border-radius: 5px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+            font-family: Arial, sans-serif;
+            line-height: 1.8;
+        }
 
-.title-box p {
-    margin: 5px 0 0;
-    font-size: 12px;
-}
+        .index-control-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
 
-.legend {
-    line-height: 20px;
-}
+        .index-option {
+            display: block;
+            white-space: nowrap;
+            cursor: pointer;
+        }
 
-.legend h4 {
-    margin: 0 0 6px;
-}
+        .index-option input {
+            margin-right: 6px;
+            cursor: pointer;
+        }
 
-.legend-item {
-    display: flex;
-    align-items: center;
-}
+        /* -------------------------------------------------------
+           LEGEND
+           ------------------------------------------------------- */
 
-.legend-color {
-    width: 18px;
-    height: 18px;
-    margin-right: 7px;
-    border: 1px solid #777;
-}
+        .legend {
+            background: white;
+            padding: 10px 12px;
+            border-radius: 5px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+            font-family: Arial, sans-serif;
+            line-height: 18px;
+        }
 
-.info-box {
-    min-width: 190px;
-}
+        .legend-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
 
-.leaflet-control-layers {
-    font-size: 14px;
-}
+        .legend-item {
+            display: flex;
+            align-items: center;
+        }
 
-.leaflet-control-layers-expanded {
-    padding: 8px 12px;
-}
+        .legend-color {
+            width: 18px;
+            height: 18px;
+            margin-right: 7px;
+            border: 1px solid #555;
+        }
 
-</style>
+    </style>
 
 </head>
+
 
 <body>
 
 <div id="map"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
+
 
 <script>
 
-console.log("EL SALVADOR DROUGHT MONITORING MAP");
+    // ============================================================
+    // CONFIGURATION
+    // ============================================================
+
+    const indices = [
+        "NDDI",
+        "MNDWI",
+        "NMDI",
+        "NDII",
+        "NDVI"
+    ];
 
 
-/* ============================================================
-   MAP
-   ============================================================ */
+    // ============================================================
+    // MAP
+    // ============================================================
 
-const map = L.map("map", {
-    center: [13.7942, -88.8965],
-    zoom: 8
-});
-
-
-/* ============================================================
-   BASE MAP
-   ============================================================ */
-
-const osm = L.tileLayer(
-    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    {
-        maxZoom: 19,
-        attribution: "&copy; OpenStreetMap contributors"
-    }
-).addTo(map);
+    const map = L.map("map").setView(
+        [13.7942, -88.8965],
+        8
+    );
 
 
-/* ============================================================
-   CLASSIFICATION COLORS
-   ============================================================ */
+    // ============================================================
+    // BASE MAP
+    // ============================================================
 
-const classColors = {
-    1: "#8B0000",
-    2: "#FF8C00",
-    3: "#FFFF66",
-    4: "#90EE90",
-    5: "#006400"
-};
-
-
-const classNames = {
-    1: "Very Low",
-    2: "Low",
-    3: "Normal",
-    4: "High",
-    5: "Very High"
-};
+    const osm = L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+            maxZoom: 19,
+            attribution:
+                '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }
+    ).addTo(map);
 
 
-/* ============================================================
-   DROUGHT PRODUCTS
-   ============================================================ */
+    // ============================================================
+    // CLASSIFICATION
+    // ============================================================
 
-const overlayLayers = {};
+    const classColors = {
 
-const files = [
-    "NDDI",
-    "MNDWI",
-    "NMDI",
-    "NDII",
-    "NDVI"
-];
+        1: "#8B0000",
+        2: "#FF8C00",
+        3: "#FFFF66",
+        4: "#90EE90",
+        5: "#006400"
 
-
-/* ============================================================
-   STYLE
-   ============================================================ */
-
-function styleFeature(feature) {
-
-    const id = feature.properties?.class_id;
-
-    return {
-        color: "#444",
-        weight: 0.4,
-        opacity: 0.8,
-        fillColor: classColors[id] || "#999",
-        fillOpacity: 0.65
     };
-}
 
 
-/* ============================================================
-   POPUP
-   ============================================================ */
+    const classNames = {
 
-function onEachFeature(feature, layer) {
+        1: "Very Low",
+        2: "Low",
+        3: "Normal",
+        4: "High",
+        5: "Very High"
 
-    const p = feature.properties || {};
-
-    const cls =
-        p.class_name ||
-        classNames[p.class_id] ||
-        "Unknown";
-
-    const area =
-        p.area_m2 != null
-            ? Number(p.area_m2).toLocaleString(
-                  undefined,
-                  {
-                      maximumFractionDigits: 0
-                  }
-              ) + " m²"
-            : "N/A";
-
-    const min =
-        p.min_value != null
-            ? Number(p.min_value).toFixed(4)
-            : "N/A";
-
-    const max =
-        p.max_value != null
-            ? Number(p.max_value).toFixed(4)
-            : "N/A";
-
-    layer.bindPopup(
-        "<strong>El Salvador Drought Monitoring</strong>" +
-        "<br><br>" +
-        "<b>Index:</b> " +
-        (p.index || "N/A") +
-        "<br>" +
-        "<b>Class:</b> " +
-        cls +
-        "<br>" +
-        "<b>Area:</b> " +
-        area +
-        "<br>" +
-        "<b>Minimum:</b> " +
-        min +
-        "<br>" +
-        "<b>Maximum:</b> " +
-        max
-    );
-}
+    };
 
 
-/* ============================================================
-   LOAD ALL FIVE GEOJSON PRODUCTS
-   ============================================================ */
+    // ============================================================
+    // STORAGE FOR GEOJSON LAYERS
+    // ============================================================
 
-async function loadAllLayers() {
+    const overlayLayers = {};
 
-    const status =
-        document.getElementById("status");
 
-    status.textContent =
-        "Loading drought products...";
+    // ============================================================
+    // STYLE GEOJSON
+    //
+    // IMPORTANT:
+    // The GeoJSON properties are:
+    //
+    //     class
+    //     label
+    //
+    // NOT:
+    //
+    //     class_id
+    //     class_name
+    // ============================================================
 
-    console.log(
-        "Loading five GeoJSON products..."
-    );
+    function styleFeature(feature) {
 
-    try {
+        const properties = feature.properties || {};
 
-        const promises = files.map(
-            async function(name) {
+        const classValue = Number(
+            properties.class
+        );
 
-                console.log(
-                    "Requesting " +
-                    name +
-                    ".geojson"
+        return {
+
+            color: "#444",
+
+            weight: 0.4,
+
+            opacity: 0.8,
+
+            fillColor:
+                classColors[classValue] || "#999",
+
+            fillOpacity: 0.65
+
+        };
+
+    }
+
+
+    // ============================================================
+    // POPUP
+    // ============================================================
+
+    function onEachFeature(feature, layer) {
+
+        const properties =
+            feature.properties || {};
+
+
+        const classValue =
+            Number(properties.class);
+
+
+        const label =
+            properties.label ||
+            classNames[classValue] ||
+            "Unknown";
+
+
+        const popupHTML =
+
+            "<div style='font-family: Arial, sans-serif;'>" +
+
+            "<b>Index:</b> " +
+            currentIndex +
+
+            "<br>" +
+
+            "<b>Class:</b> " +
+            label +
+
+            "<br>" +
+
+            "<b>Class value:</b> " +
+            (
+                Number.isFinite(classValue)
+                    ? classValue
+                    : "N/A"
+            ) +
+
+            "</div>";
+
+
+        layer.bindPopup(
+            popupHTML
+        );
+
+    }
+
+
+    // ============================================================
+    // CURRENTLY SELECTED INDEX
+    // ============================================================
+
+    let currentIndex = "NDDI";
+
+
+    // ============================================================
+    // LOAD ALL GEOJSON FILES
+    // ============================================================
+
+    async function loadAllLayers() {
+
+        const promises = indices.map(
+            async function(index) {
+
+                const response = await fetch(
+                    index + ".geojson"
                 );
 
-                const response =
-                    await fetch(
-                        name + ".geojson"
-                    );
 
                 if (!response.ok) {
 
                     throw new Error(
-                        name +
-                        ".geojson HTTP " +
-                        response.status
+                        "Could not load " +
+                        index +
+                        ".geojson"
                     );
+
                 }
+
 
                 const data =
                     await response.json();
 
-                console.log(
-                    name +
-                    ".geojson loaded."
+
+                const layer = L.geoJSON(
+                    data,
+                    {
+                        style: styleFeature,
+                        onEachFeature: onEachFeature
+                    }
                 );
 
-                const layer =
-                    L.geoJSON(
-                        data,
-                        {
-                            style: styleFeature,
-                            onEachFeature: onEachFeature
-                        }
-                    );
 
-                overlayLayers[name] =
+                overlayLayers[index] =
                     layer;
 
-                return layer;
+
+                return index;
+
             }
         );
 
 
-        /* --------------------------------------------------------
-           IMPORTANT:
-           Wait until ALL FIVE layers exist before creating
-           the Leaflet layer control.
-           -------------------------------------------------------- */
-
-        await Promise.all(promises);
-
-
-        console.log(
-            "ALL FIVE LAYERS LOADED."
+        await Promise.all(
+            promises
         );
 
 
-        /* ========================================================
-           LAYER CONTROL
-           ======================================================== */
-
-        const layerControl =
-            L.control.layers(
-                {
-                    "OpenStreetMap": osm
-                },
-                null,
-                {
-                    collapsed: false,
-                    position: "topright"
-                }
-            ).addTo(map);
-
-
-        /*
-         * Add the five drought indices to the control.
-         */
-
-        layerControl.addOverlay(
-            overlayLayers["NDDI"],
-            "NDDI"
-        );
-
-        layerControl.addOverlay(
-            overlayLayers["MNDWI"],
-            "MNDWI"
-        );
-
-        layerControl.addOverlay(
-            overlayLayers["NMDI"],
-            "NMDI"
-        );
-
-        layerControl.addOverlay(
-            overlayLayers["NDII"],
-            "NDII"
-        );
-
-        layerControl.addOverlay(
-            overlayLayers["NDVI"],
-            "NDVI"
-        );
-
-
-        /* ========================================================
-           INITIAL LAYER
-           ======================================================== */
+        // ========================================================
+        // SHOW NDDI INITIALLY
+        // ========================================================
 
         overlayLayers["NDDI"].addTo(map);
 
 
-        /* ========================================================
-           ZOOM TO EL SALVADOR PRODUCT
-           ======================================================== */
+        currentIndex = "NDDI";
 
-        const bounds =
-            overlayLayers["NDDI"].getBounds();
 
-        if (bounds.isValid()) {
+        // ========================================================
+        // CREATE SINGLE-SELECTION CONTROL
+        // ========================================================
 
-            map.fitBounds(
-                bounds,
-                {
-                    padding: [20, 20]
+        createIndexControl();
+
+    }
+
+
+    // ============================================================
+    // CREATE INDEX CONTROL
+    //
+    // The controls look like checkboxes.
+    //
+    // However, JavaScript forces them to behave as a
+    // SINGLE-SELECTION control.
+    //
+    // Therefore:
+    //
+    // NDDI     [x]
+    // MNDWI    [ ]
+    // NMDI     [ ]
+    // NDII     [ ]
+    // NDVI     [ ]
+    //
+    // Selecting another index automatically hides the
+    // previously selected one.
+    // ============================================================
+
+    function createIndexControl() {
+
+        const control =
+            L.control({
+                position: "topright"
+            });
+
+
+        control.onAdd = function() {
+
+            const container =
+                L.DomUtil.create(
+                    "div",
+                    "index-control"
+                );
+
+
+            L.DomEvent.disableClickPropagation(
+                container
+            );
+
+
+            const title =
+                L.DomUtil.create(
+                    "div",
+                    "index-control-title",
+                    container
+                );
+
+
+            title.innerHTML =
+                "Drought Index";
+
+
+            indices.forEach(
+                function(index) {
+
+                    const label =
+                        L.DomUtil.create(
+                            "label",
+                            "index-option",
+                            container
+                        );
+
+
+                    const checkbox =
+                        L.DomUtil.create(
+                            "input",
+                            "",
+                            label
+                        );
+
+
+                    checkbox.type =
+                        "checkbox";
+
+
+                    checkbox.value =
+                        index;
+
+
+                    checkbox.checked =
+                        (
+                            index ===
+                            currentIndex
+                        );
+
+
+                    const text =
+                        document.createTextNode(
+                            index
+                        );
+
+
+                    label.appendChild(
+                        text
+                    );
+
+
+                    // ------------------------------------------------
+                    // SINGLE-SELECTION BEHAVIOR
+                    // ------------------------------------------------
+
+                    checkbox.addEventListener(
+                        "change",
+                        function() {
+
+                            // If user tries to uncheck the
+                            // currently active index, immediately
+                            // turn it back on.
+                            if (!checkbox.checked) {
+
+                                checkbox.checked = true;
+
+                                return;
+
+                            }
+
+
+                            // Hide every other index.
+                            indices.forEach(
+                                function(otherIndex) {
+
+                                    if (
+                                        otherIndex !==
+                                        index
+                                    ) {
+
+                                        const otherLayer =
+                                            overlayLayers[
+                                                otherIndex
+                                            ];
+
+
+                                        if (
+                                            otherLayer &&
+                                            map.hasLayer(
+                                                otherLayer
+                                            )
+                                        ) {
+
+                                            map.removeLayer(
+                                                otherLayer
+                                            );
+
+                                        }
+
+                                    }
+
+                                }
+                            );
+
+
+                            // Show selected index.
+                            const selectedLayer =
+                                overlayLayers[
+                                    index
+                                ];
+
+
+                            if (
+                                selectedLayer &&
+                                !map.hasLayer(
+                                    selectedLayer
+                                )
+                            ) {
+
+                                selectedLayer.addTo(
+                                    map
+                                );
+
+                            }
+
+
+                            // Update current index.
+                            currentIndex =
+                                index;
+
+
+                            // Update all checkbox states.
+                            const allCheckboxes =
+                                container.querySelectorAll(
+                                    "input[type='checkbox']"
+                                );
+
+
+                            allCheckboxes.forEach(
+                                function(otherCheckbox) {
+
+                                    otherCheckbox.checked =
+                                        (
+                                            otherCheckbox.value ===
+                                            currentIndex
+                                        );
+
+                                }
+                            );
+
+                        }
+                    );
+
                 }
             );
-        }
 
 
-        status.textContent =
-            "5 / 5 drought products loaded";
+            return container;
+
+        };
 
 
-        console.log(
-            "LAYER CONTROL READY"
+        control.addTo(
+            map
         );
 
     }
 
-    catch (error) {
 
-        console.error(
-            "ERROR LOADING DROUGHT PRODUCTS:",
-            error
-        );
+    // ============================================================
+    // LEGEND
+    // ============================================================
 
-        status.textContent =
-            "ERROR: " +
-            error.message;
-    }
-}
+    const legend =
+        L.control({
+            position: "bottomright"
+        });
 
 
-/* ============================================================
-   TITLE
-   ============================================================ */
+    legend.onAdd = function() {
 
-const title =
-    L.control({
-        position: "topleft"
-    });
-
-
-title.onAdd =
-    function() {
-
-        const d =
-            L.DomUtil.create(
-                "div",
-                "title-box"
-            );
-
-        d.innerHTML =
-            "<h1>El Salvador Drought Monitoring</h1>" +
-            "<p>Sentinel-2 L2A drought indices</p>";
-
-        return d;
-    };
-
-
-title.addTo(map);
-
-
-/* ============================================================
-   LEGEND
-   ============================================================ */
-
-const legend =
-    L.control({
-        position: "bottomright"
-    });
-
-
-legend.onAdd =
-    function() {
-
-        const d =
+        const div =
             L.DomUtil.create(
                 "div",
                 "legend"
             );
 
-        d.innerHTML =
-            "<h4>Drought Classification</h4>";
 
-        for (
-            let i = 1;
-            i <= 5;
-            i++
-        ) {
+        div.innerHTML =
+            "<div class='legend-title'>" +
+            "Classification" +
+            "</div>";
 
-            d.innerHTML +=
-                "<div class='legend-item'>" +
-                "<div class='legend-color' " +
-                "style='background:" +
-                classColors[i] +
-                "'></div>" +
-                classNames[i] +
-                "</div>";
-        }
 
-        return d;
+        const classes = [
+            [1, "Very Low"],
+            [2, "Low"],
+            [3, "Normal"],
+            [4, "High"],
+            [5, "Very High"]
+        ];
+
+
+        classes.forEach(
+            function(item) {
+
+                const classValue =
+                    item[0];
+
+                const classLabel =
+                    item[1];
+
+
+                div.innerHTML +=
+
+                    "<div class='legend-item'>" +
+
+                    "<span class='legend-color' " +
+                    "style='background:" +
+                    classColors[classValue] +
+                    ";'></span>" +
+
+                    classLabel +
+
+                    "</div>";
+
+            }
+        );
+
+
+        return div;
+
     };
 
 
-legend.addTo(map);
+    legend.addTo(
+        map
+    );
 
 
-/* ============================================================
-   STATUS BOX
-   ============================================================ */
+    // ============================================================
+    // LOAD DATA
+    // ============================================================
 
-const info =
-    L.control({
-        position: "bottomleft"
-    });
+    loadAllLayers()
+        .catch(
+            function(error) {
 
-
-info.onAdd =
-    function() {
-
-        const d =
-            L.DomUtil.create(
-                "div",
-                "info-box"
-            );
-
-        d.id = "status";
-
-        d.textContent =
-            "Loading drought products...";
-
-        return d;
-    };
+                console.error(
+                    "Error loading drought layers:",
+                    error
+                );
 
 
-info.addTo(map);
+                alert(
+                    "Error loading drought data. " +
+                    "Please check the browser console."
+                );
 
-
-/* ============================================================
-   START
-   ============================================================ */
-
-loadAllLayers();
+            }
+        );
 
 </script>
 
 </body>
-
 </html>
