@@ -64,30 +64,38 @@ jobs:
           echo STARTING SEQUIAS DROUGHT MONITORING
           echo ==============================================
 
-          set "PYTHON_EXE=C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe"
           set "PROJECT_ROOT=C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos"
+          set "PYTHON_EXE=C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe"
           set "SCRIPT=%PROJECT_ROOT%\scripts\run_drought_monitoring.py"
 
           echo.
-          echo Python:
-          "%PYTHON_EXE%" --version
+          echo Project directory:
+          echo %PROJECT_ROOT%
 
           echo.
-          echo Project:
-          echo %PROJECT_ROOT%
+          echo Python executable:
+          echo %PYTHON_EXE%
 
           echo.
           echo Script:
           echo %SCRIPT%
 
+          if not exist "%PYTHON_EXE%" (
+              echo ERROR: Python executable not found.
+              exit /b 1
+          )
+
           if not exist "%SCRIPT%" (
-              echo.
-              echo ERROR: run_drought_monitoring.py was not found.
+              echo ERROR: Drought monitoring script not found.
               exit /b 1
           )
 
           echo.
-          echo Running script...
+          echo ==============================================
+          echo RUNNING DROUGHT MONITORING SCRIPT
+          echo ==============================================
+
+          cd /d "%PROJECT_ROOT%"
 
           "%PYTHON_EXE%" "%SCRIPT%"
 
@@ -101,9 +109,8 @@ jobs:
 
           echo.
           echo ==============================================
-          echo DROUGHT MONITORING FINISHED SUCCESSFULLY
+          echo DROUGHT MONITORING COMPLETED SUCCESSFULLY
           echo ==============================================
-
 
       # ============================================================
       # 2. PREPARE GITHUB PAGES
