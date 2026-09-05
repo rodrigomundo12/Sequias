@@ -3570,20 +3570,21 @@ def cleanup_classified_raster(
 
 
     # ============================================================
-    # STEP 1 — MAJORITY FILTER
+    # STEP 1 — GENTLE MAJORITY FILTER
     # ============================================================
     #
-    # This is the most important change.
+    # Relaxed version:
     #
-    # It removes isolated pixels and produces more coherent
-    # drought regions before polygonization.
+    # 3x3 neighborhood
+    # At least 4 of 9 pixels required
     #
-    # At 3 km resolution we use a 3x3 neighborhood.
+    # This removes isolated pixels while preserving considerably
+    # more of the original spatial pattern.
     #
     # ============================================================
 
     print(
-        "Applying majority filter..."
+        "Applying gentle majority filter..."
     )
 
     valid = (
@@ -3591,10 +3592,6 @@ def cleanup_classified_raster(
     )
 
     if np.any(valid):
-
-        # --------------------------------------------------------
-        # Count each class in a 3x3 neighborhood
-        # --------------------------------------------------------
 
         filtered = cleaned.copy()
 
@@ -3607,8 +3604,6 @@ def cleanup_classified_raster(
                 cleaned == class_id
             )
 
-            # Number of pixels belonging to this class
-            # in the 3x3 neighborhood.
             neighborhood_count = (
                 ndimage.convolve(
                     class_mask.astype(np.uint8),
@@ -3621,10 +3616,13 @@ def cleanup_classified_raster(
                 )
             )
 
-            # Require at least 5 of 9 neighboring pixels
-            # to belong to the class.
+            # ----------------------------------------------------
+            # Relaxed majority:
+            # 4 of 9 instead of 5 of 9
+            # ----------------------------------------------------
+
             majority = (
-                neighborhood_count >= 5
+                neighborhood_count >= 4
             )
 
             filtered[
@@ -3635,11 +3633,11 @@ def cleanup_classified_raster(
 
 
     # ============================================================
-    # STEP 2 — REMOVE SMALL CONNECTED REGIONS
+    # STEP 2 — REMOVE ONLY VERY SMALL CONNECTED REGIONS
     # ============================================================
 
     print(
-        "Removing small connected regions..."
+        "Removing very small connected regions..."
     )
 
     total_removed = 0
@@ -3714,12 +3712,21 @@ def cleanup_classified_raster(
 
 
     # ============================================================
-    # STEP 3 — FILL VERY SMALL INTERNAL HOLES
+    # STEP 3 — DO NOT AGGRESSIVELY FILL HOLES
+    # ============================================================
+    #
+    # Only fill a hole when it consists of a SINGLE pixel.
+    #
+    # This prevents large missing/invalid areas from being
+    # artificially converted into drought classes.
+    #
     # ============================================================
 
     print(
-        "Filling small internal holes..."
+        "Filling only single-pixel internal holes..."
     )
+
+    total_holes_filled = 0
 
     for class_id in range(
         1,
@@ -3736,24 +3743,76 @@ def cleanup_classified_raster(
 
             continue
 
-        # Fill holes inside this class.
         filled = (
             ndimage.binary_fill_holes(
                 class_mask
             )
         )
 
-        # Only fill locations that were previously
-        # empty and are completely surrounded.
         new_pixels = (
             filled
             &
             (~class_mask)
         )
 
+        # --------------------------------------------------------
+        # Identify connected holes
+        # --------------------------------------------------------
+
+        hole_labels, hole_count = (
+            ndimage.label(
+                new_pixels,
+                structure=structure
+            )
+        )
+
+        if hole_count == 0:
+
+            del filled
+            del new_pixels
+
+            continue
+
+        hole_sizes = np.bincount(
+            hole_labels.ravel()
+        )
+
+        # --------------------------------------------------------
+        # ONLY fill holes of 1 pixel
+        # --------------------------------------------------------
+
+        tiny_holes = (
+            hole_sizes <= 1
+        )
+
+        tiny_holes[0] = False
+
+        fill_mask = (
+            tiny_holes[
+                hole_labels
+            ]
+        )
+
         cleaned[
-            new_pixels
+            fill_mask
         ] = class_id
+
+        filled_count = int(
+            np.sum(
+                fill_mask
+            )
+        )
+
+        total_holes_filled += (
+            filled_count
+        )
+
+        del filled
+        del new_pixels
+        del hole_labels
+        del hole_sizes
+        del tiny_holes
+        del fill_mask
 
 
     # ============================================================
@@ -3796,6 +3855,11 @@ def cleanup_classified_raster(
     )
 
     print(
+        f"Total holes filled: "
+        f"{total_holes_filled:,}"
+    )
+
+    print(
         f"Cleaned raster saved: "
         f"{output_path}"
     )
@@ -3805,7 +3869,6 @@ def cleanup_classified_raster(
     del cleaned
 
     gc.collect()
-
 
 # ================================================================
 # POLYGONIZE CLEANED RASTER
