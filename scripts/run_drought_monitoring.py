@@ -3129,17 +3129,17 @@ for hydro_year in available_years:
 # 19. 5-CLASS RASTER CLASSIFICATION + CLEANUP + POLYGONIZATION
 # ================================================================
 
-LOWER_PERCENTILE = 2
-UPPER_PERCENTILE = 98
+LOWER_PERCENTILE = 1
+UPPER_PERCENTILE = 99
 
 N_CLASSES = 5
 
 CLASS_NAMES = {
-    1: "Very Low",
-    2: "Low",
+    1: "Muy bajo",
+    2: "Bajo",
     3: "Normal",
-    4: "High",
-    5: "Very High"
+    4: "Alto",
+    5: "Muy Alto"
 }
 
 PERCENTILE_SAMPLE_SIZE = 2_000_000
@@ -3148,7 +3148,7 @@ PERCENTILE_SAMPLE_SIZE = 2_000_000
 MIN_POLYGON_AREA_M2 = 144000
 
 # Simplification in meters
-SIMPLIFY_TOLERANCE_M = 750
+SIMPLIFY_TOLERANCE_M = 1000
 
 # Metric CRS
 METRIC_CRS = "EPSG:32616"
@@ -4371,7 +4371,7 @@ WEB_CRS = "EPSG:4326"
 
 MIN_AREA_M2 = 5000.0
 
-SIMPLIFY_TOLERANCE_M = 750
+SIMPLIFY_TOLERANCE_M = 1000
 
 
 def clean_geometry(
