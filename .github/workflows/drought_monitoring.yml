@@ -122,6 +122,7 @@ jobs:
           echo ==============================================
 
           set "PROJECT_ROOT=C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos"
+          set "PYTHON_EXE=C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe"
 
           cd /d "%PROJECT_ROOT%"
 
@@ -139,401 +140,602 @@ jobs:
           mkdir "docs\vectors"
 
           echo.
-          echo Checking optimized web products...
+          echo ==============================================
+          echo CHECKING WEB PRODUCTS
+          echo ==============================================
 
           if not exist "distribution\latest\vectors\NDDI.geojson" (
               echo ERROR: NDDI.geojson not found.
               exit /b 1
           )
 
+          if not exist "distribution\latest\vectors\MNDWI.geojson" (
+              echo ERROR: MNDWI.geojson not found.
+              exit /b 1
+          )
+
+          if not exist "distribution\latest\vectors\NMDI.geojson" (
+              echo ERROR: NMDI.geojson not found.
+              exit /b 1
+          )
+
+          if not exist "distribution\latest\vectors\NDII.geojson" (
+              echo ERROR: NDII.geojson not found.
+              exit /b 1
+          )
+
+          if not exist "distribution\latest\vectors\NDVI.geojson" (
+              echo ERROR: NDVI.geojson not found.
+              exit /b 1
+          )
+
           echo.
-          echo Copying optimized web products...
+          echo All five web products found.
 
-          if exist "distribution\latest\vectors\NDDI.geojson" (
-              copy /Y "distribution\latest\vectors\NDDI.geojson" "docs\vectors\NDDI.geojson"
+          echo.
+          echo ==============================================
+          echo COPYING WEB VECTOR PRODUCTS
+          echo ==============================================
+
+          copy /Y "distribution\latest\vectors\NDDI.geojson" "docs\vectors\NDDI.geojson"
+
+          if errorlevel 1 (
+              echo ERROR: Could not copy NDDI.geojson
+              exit /b 1
           )
 
-          if exist "distribution\latest\vectors\MNDWI.geojson" (
-              copy /Y "distribution\latest\vectors\MNDWI.geojson" "docs\vectors\MNDWI.geojson"
+          copy /Y "distribution\latest\vectors\MNDWI.geojson" "docs\vectors\MNDWI.geojson"
+
+          if errorlevel 1 (
+              echo ERROR: Could not copy MNDWI.geojson
+              exit /b 1
           )
 
-          if exist "distribution\latest\vectors\NMDI.geojson" (
-              copy /Y "distribution\latest\vectors\NMDI.geojson" "docs\vectors\NMDI.geojson"
+          copy /Y "distribution\latest\vectors\NMDI.geojson" "docs\vectors\NMDI.geojson"
+
+          if errorlevel 1 (
+              echo ERROR: Could not copy NMDI.geojson
+              exit /b 1
           )
 
-          if exist "distribution\latest\vectors\NDII.geojson" (
-              copy /Y "distribution\latest\vectors\NDII.geojson" "docs\vectors\NDII.geojson"
+          copy /Y "distribution\latest\vectors\NDII.geojson" "docs\vectors\NDII.geojson"
+
+          if errorlevel 1 (
+              echo ERROR: Could not copy NDII.geojson
+              exit /b 1
           )
 
-          if exist "distribution\latest\vectors\NDVI.geojson" (
-              copy /Y "distribution\latest\vectors\NDVI.geojson" "docs\vectors\NDVI.geojson"
+          copy /Y "distribution\latest\vectors\NDVI.geojson" "docs\vectors\NDVI.geojson"
+
+          if errorlevel 1 (
+              echo ERROR: Could not copy NDVI.geojson
+              exit /b 1
           )
+
+          echo.
+          echo Web vector products copied successfully.
+
+
+          # ========================================================
+          # CREATE INTERACTIVE LEAFLET MAP
+          # ========================================================
 
           echo.
           echo ==============================================
           echo CREATING INTERACTIVE LEAFLET MAP
           echo ==============================================
 
-          (
-            echo ^<!DOCTYPE html^>
-            echo ^<html lang="en"^>
-            echo ^<head^>
-            echo ^<meta charset="UTF-8"^>
-            echo ^<meta name="viewport" content="width=device-width, initial-scale=1.0"^>
-            echo ^<title^>El Salvador Drought Monitoring^</title^>
-            echo ^<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /^>
+          "%PYTHON_EXE%" -c "from pathlib import Path; p=Path(r'docs\vectors\index.html'); p.write_text('''<!DOCTYPE html>
+          <html lang="en">
+          <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-            echo ^<style^>
+          <title>El Salvador Drought Monitoring Map</title>
 
-            echo html, body {
-            echo   height: 100%%;
-            echo   margin: 0;
-            echo   padding: 0;
-            echo }
+          <link
+            rel="stylesheet"
+            href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          />
 
-            echo body {
-            echo   font-family: Arial, sans-serif;
-            echo }
+          <style>
 
-            echo #map {
-            echo   width: 100%%;
-            echo   height: 100%%;
-            echo }
+          html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+          }
 
-            echo .panel {
-            echo   position: absolute;
-            echo   top: 15px;
-            echo   left: 55px;
-            echo   z-index: 1000;
-            echo   background: white;
-            echo   padding: 15px;
-            echo   border-radius: 8px;
-            echo   box-shadow: 0 2px 10px rgba(0,0,0,0.25);
-            echo   width: 260px;
-            echo }
+          #map {
+            width: 100%;
+            height: 100vh;
+          }
 
-            echo .panel h1 {
-            echo   margin: 0 0 10px 0;
-            echo   font-size: 19px;
-            echo }
+          .title-box {
+            background: white;
+            padding: 12px 16px;
+            border-radius: 6px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.3);
+          }
 
-            echo .panel label {
-            echo   display: block;
-            echo   margin-bottom: 5px;
-            echo   font-size: 13px;
-            echo   font-weight: bold;
-            echo }
+          .title-box h1 {
+            margin: 0;
+            font-size: 18px;
+          }
 
-            echo .panel select {
-            echo   width: 100%%;
-            echo   padding: 7px;
-            echo   font-size: 14px;
-            echo   border: 1px solid #aaa;
-            echo   border-radius: 4px;
-            echo }
+          .title-box p {
+            margin: 5px 0 0 0;
+            font-size: 12px;
+          }
 
-            echo .status {
-            echo   margin-top: 10px;
-            echo   font-size: 12px;
-            echo }
+          .legend {
+            background: white;
+            padding: 10px 12px;
+            line-height: 20px;
+            border-radius: 6px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.3);
+          }
 
-            echo .legend {
-            echo   background: white;
-            echo   padding: 10px;
-            echo   line-height: 22px;
-            echo   border-radius: 6px;
-            echo   box-shadow: 0 1px 6px rgba(0,0,0,0.25);
+          .legend h4 {
+            margin: 0 0 6px 0;
+          }
+
+          .legend-item {
+            display: flex;
+            align-items: center;
+          }
+
+          .legend-color {
+            width: 18px;
+            height: 18px;
+            margin-right: 7px;
+            border: 1px solid #777;
+          }
+
+          .info-box {
+            background: white;
+            padding: 10px 12px;
+            border-radius: 6px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.3);
+            min-width: 180px;
+          }
+
+          </style>
+
+          </head>
+
+          <body>
+
+          <div id="map"></div>
+
+          <script
+            src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+          </script>
+
+          <script>
+
+          // ========================================================
+          // MAP INITIALIZATION
+          // ========================================================
+
+          const map = L.map("map", {
+            center: [13.7942, -88.8965],
+            zoom: 8
+          });
+
+
+          // ========================================================
+          // BASE MAP
+          // ========================================================
+
+          const osm = L.tileLayer(
+            "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            {
+              maxZoom: 19,
+              attribution: "&copy; OpenStreetMap contributors"
+            }
+          ).addTo(map);
+
+
+          // ========================================================
+          // CLASS COLORS
+          // ========================================================
+
+          const classColors = {
+            1: "#8B0000",
+            2: "#FF8C00",
+            3: "#FFFF66",
+            4: "#90EE90",
+            5: "#006400"
+          };
+
+
+          const classNames = {
+            1: "Very Low",
+            2: "Low",
+            3: "Normal",
+            4: "High",
+            5: "Very High"
+          };
+
+
+          // ========================================================
+          // STYLE FUNCTION
+          // ========================================================
+
+          function polygonStyle(feature) {
+
+            const classId =
+              feature.properties &&
+              feature.properties.class_id;
+
+            return {
+              color: "#444",
+              weight: 0.4,
+              opacity: 0.8,
+              fillColor: classColors[classId] || "#999999",
+              fillOpacity: 0.65
+            };
+          }
+
+
+          // ========================================================
+          // POPUP
+          // ========================================================
+
+          function onEachFeature(feature, layer) {
+
+            const p = feature.properties || {};
+
+            const className =
+              p.class_name ||
+              classNames[p.class_id] ||
+              "Unknown";
+
+            const area =
+              p.area_m2 !== undefined &&
+              p.area_m2 !== null
+                ? Number(p.area_m2).toLocaleString(
+                    undefined,
+                    {
+                      maximumFractionDigits: 0
+                    }
+                  )
+                : "N/A";
+
+            const index =
+              p.index || "N/A";
+
+            const minValue =
+              p.min_value !== null &&
+              p.min_value !== undefined
+                ? Number(p.min_value).toFixed(4)
+                : "N/A";
+
+            const maxValue =
+              p.max_value !== null &&
+              p.max_value !== undefined
+                ? Number(p.max_value).toFixed(4)
+                : "N/A";
+
+            layer.bindPopup(
+              "<strong>Drought Monitoring</strong><br><br>" +
+              "<b>Index:</b> " + index + "<br>" +
+              "<b>Class:</b> " + className + "<br>" +
+              "<b>Class ID:</b> " + (p.class_id || "N/A") + "<br>" +
+              "<b>Area:</b> " + area + " m²<br>" +
+              "<b>Minimum:</b> " + minValue + "<br>" +
+              "<b>Maximum:</b> " + maxValue
+            );
+          }
+
+
+          // ========================================================
+          // LOAD GEOJSON LAYER
+          // ========================================================
+
+          async function loadGeoJSON(
+            filename,
+            layerName
+          ) {
+
+            try {
+
+              const response =
+                await fetch(filename);
+
+              if (!response.ok) {
+                throw new Error(
+                  "HTTP " + response.status
+                );
+              }
+
+              const data =
+                await response.json();
+
+              const layer =
+                L.geoJSON(
+                  data,
+                  {
+                    style: polygonStyle,
+                    onEachFeature: onEachFeature
+                  }
+                );
+
+              overlayLayers[layerName] = layer;
+
+              layer.addTo(map);
+
+              loadedLayers++;
+
+              if (loadedLayers === totalLayers) {
+                fitToAllLayers();
+              }
+
+              updateInfo();
+
+            } catch (error) {
+
+              console.error(
+                "Error loading " +
+                filename +
+                ":",
+                error
+              );
+
+              const errorBox =
+                document.getElementById(
+                  "map-status"
+                );
+
+              errorBox.innerHTML +=
+                "<br>Could not load " +
+                filename;
+
+            }
+          }
+
+
+          // ========================================================
+          // LAYER COLLECTION
+          // ========================================================
+
+          const overlayLayers = {};
+
+          const totalLayers = 5;
+
+          let loadedLayers = 0;
+
+
+          // ========================================================
+          // LOAD ALL FIVE INDICES
+          // ========================================================
+
+          loadGeoJSON(
+            "NDDI.geojson",
+            "NDDI"
+          );
+
+          loadGeoJSON(
+            "MNDWI.geojson",
+            "MNDWI"
+          );
+
+          loadGeoJSON(
+            "NMDI.geojson",
+            "NMDI"
+          );
+
+          loadGeoJSON(
+            "NDII.geojson",
+            "NDII"
+          );
+
+          loadGeoJSON(
+            "NDVI.geojson",
+            "NDVI"
+          );
+
+
+          // ========================================================
+          // LAYER CONTROL
+          // ========================================================
+
+          const baseLayers = {
+            "OpenStreetMap": osm
+          };
+
+          L.control.layers(
+            baseLayers,
+            overlayLayers,
+            {
+              collapsed: false
+            }
+          ).addTo(map);
+
+
+          // ========================================================
+          // FIT MAP TO DATA
+          // ========================================================
+
+          function fitToAllLayers() {
+
+            let bounds = null;
+
+            Object.values(
+              overlayLayers
+            ).forEach(function(layer) {
+
+              if (
+                layer &&
+                layer.getBounds &&
+                layer.getBounds().isValid()
+              ) {
+
+                if (bounds === null) {
+                  bounds =
+                    layer.getBounds();
+                } else {
+                  bounds.extend(
+                    layer.getBounds()
+                  );
+                }
+              }
+            });
+
+            if (
+              bounds !== null &&
+              bounds.isValid()
+            ) {
+
+              map.fitBounds(
+                bounds,
+                {
+                  padding: [20, 20]
+                }
+              );
+            }
+          }
+
+
+          // ========================================================
+          // TITLE
+          // ========================================================
+
+          const titleControl =
+            L.control({
+              position: "topleft"
+            });
+
+          titleControl.onAdd =
+            function() {
+
+              const div =
+                L.DomUtil.create(
+                  "div",
+                  "title-box"
+                );
+
+              div.innerHTML =
+                "<h1>El Salvador Drought Monitoring</h1>" +
+                "<p>Sentinel-2 L2A drought indices</p>";
+
+              return div;
+            };
+
+          titleControl.addTo(map);
+
+
+          // ========================================================
+          // LEGEND
+          // ========================================================
+
+          const legend =
+            L.control({
+              position: "bottomright"
+            });
+
+          legend.onAdd =
+            function() {
+
+              const div =
+                L.DomUtil.create(
+                  "div",
+                  "legend"
+                );
+
+              div.innerHTML =
+                "<h4>Drought Classification</h4>";
+
+              for (
+                let i = 1;
+                i <= 5;
+                i++
+              ) {
+
+                div.innerHTML +=
+                  "<div class='legend-item'>" +
+                  "<div class='legend-color' " +
+                  "style='background:" +
+                  classColors[i] +
+                  "'></div>" +
+                  classNames[i] +
+                  "</div>";
+              }
+
+              return div;
+            };
+
+          legend.addTo(map);
+
+
+          // ========================================================
+          // STATUS / INFO
+          // ========================================================
+
+          const info =
+            L.control({
+              position: "bottomleft"
+            });
+
+          info.onAdd =
+            function() {
+
+              const div =
+                L.DomUtil.create(
+                  "div",
+                  "info-box"
+                );
+
+              div.id = "map-status";
+
+              div.innerHTML =
+                "Loading drought products...";
+
+              return div;
+            };
+
+          info.addTo(map);
+
+
+          function updateInfo() {
+
+            const box =
+              document.getElementById(
+                "map-status"
+              );
+
+            if (!box) {
+              return;
             }
 
-            echo .legend i {
-            echo   width: 18px;
-            echo   height: 18px;
-            echo   float: left;
-            echo   margin-right: 7px;
-            echo   opacity: 0.8;
-            }
-
-            echo .loading {
-            echo   position: absolute;
-            echo   top: 15px;
-            echo   right: 15px;
-            echo   z-index: 1000;
-            echo   background: white;
-            echo   padding: 8px 12px;
-            echo   border-radius: 5px;
-            echo   box-shadow: 0 1px 5px rgba(0,0,0,0.25);
-            echo   display: none;
-            }
-
-            echo .error {
-            echo   color: #b30000;
-            echo   font-weight: bold;
-            echo }
-
-            echo ^</style^>
-            echo ^</head^>
-
-            echo ^<body^>
-
-            echo ^<div id="map"^>^</div^>
-
-            echo ^<div class="panel"^>
-
-            echo ^<h1^>El Salvador Drought Monitoring^</h1^>
-
-            echo ^<label for="indexSelect"^>Drought index^</label^>
-
-            echo ^<select id="indexSelect"^>
-
-            echo ^<option value="NDDI"^>NDDI^</option^>
-            echo ^<option value="MNDWI"^>MNDWI^</option^>
-            echo ^<option value="NMDI"^>NMDI^</option^>
-            echo ^<option value="NDII"^>NDII^</option^>
-            echo ^<option value="NDVI"^>NDVI^</option^>
-
-            echo ^</select^>
-
-            echo ^<div class="status" id="statusText"^>
-            echo Loading NDDI...
-            echo ^</div^>
-
-            echo ^</div^>
-
-            echo ^<div id="loading" class="loading"^>
-            echo Loading...
-            echo ^</div^>
-
-            echo ^<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"^>^</script^>
-
-            echo ^<script^>
-
-            echo const map = L.map('map').setView([13.79, -88.9], 8);
-
-            echo L.tileLayer(
-            echo   'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            echo   {
-            echo     attribution: '&copy; OpenStreetMap contributors'
-            echo   }
-            echo ).addTo(map);
-
-            echo const classColors = {
-            echo   1: '#d73027',
-            echo   2: '#fc8d59',
-            echo   3: '#ffffbf',
-            echo   4: '#91cf60',
-            echo   5: '#1a9850'
-            echo };
-
-            echo const classLabels = {
-            echo   1: 'Very Low',
-            echo   2: 'Low',
-            echo   3: 'Normal',
-            echo   4: 'High',
-            echo   5: 'Very High'
-            echo };
-
-            echo let currentLayer = null;
-
-            echo function styleFeature(feature) {
-
-            echo   const id = Number(feature.properties.class_id);
-
-            echo   let fill = '#999999';
-
-            echo   if (classColors[id]) {
-            echo     fill = classColors[id];
-            echo   }
-
-            echo   return {
-            echo     fillColor: fill,
-            echo     weight: 0.5,
-            echo     opacity: 1,
-            echo     color: '#555555',
-            echo     fillOpacity: 0.65
-            echo   };
-
-            echo }
-
-            echo function onEachFeature(feature, layer) {
-
-            echo   const p = feature.properties;
-
-            echo   const className =
-            echo     p.class_name ? p.class_name : 'Unknown';
-
-            echo   const indexName =
-            echo     p.index ? p.index : '';
-
-            echo   let areaText = 'N/A';
-
-            echo   if (p.area_m2 !== null && p.area_m2 !== undefined) {
-            echo     areaText =
-            echo       Number(p.area_m2).toLocaleString(undefined, {
-            echo         maximumFractionDigits: 0
-            echo       }) + ' m^2';
-            echo   }
-
-            echo   layer.bindPopup(
-            echo     '^<b^>' + indexName + '^</b^>^<br^>' +
-            echo     '^<b^>Class:^</b^> ' + className + '^<br^>' +
-            echo     '^<b^>Class ID:^</b^> ' + p.class_id + '^<br^>' +
-            echo     '^<b^>Area:^</b^> ' + areaText
-            echo   );
-
-            echo   layer.on({
-
-            echo     mouseover: function(e) {
-
-            echo       e.target.setStyle({
-            echo         weight: 2,
-            echo         color: '#000000'
-            echo       });
-
-            echo       e.target.bringToFront();
-
-            echo     },
-
-            echo     mouseout: function(e) {
-
-            echo       if (currentLayer) {
-            echo         currentLayer.resetStyle(e.target);
-            echo       }
-
-            echo     }
-
-            echo   });
-
-            echo }
-
-            echo function updateMap(indexName) {
-
-            echo   const loading =
-            echo     document.getElementById('loading');
-
-            echo   const statusText =
-            echo     document.getElementById('statusText');
-
-            echo   loading.style.display = 'block';
-
-            echo   statusText.innerHTML =
-            echo     'Loading ' + indexName + '...';
-
-            echo   if (currentLayer) {
-            echo     map.removeLayer(currentLayer);
-            echo     currentLayer = null;
-            echo   }
-
-            echo   fetch(indexName + '.geojson')
-            echo     .then(response =^> {
-
-            echo       if (!response.ok) {
-            echo         throw new Error(
-            echo           'HTTP ' + response.status
-            echo         );
-            echo       }
-
-            echo       return response.json();
-
-            echo     })
-
-            echo     .then(data =^> {
-
-            echo       currentLayer =
-            echo         L.geoJSON(data, {
-            echo           style: styleFeature,
-            echo           onEachFeature: onEachFeature
-            echo         }).addTo(map);
-
-            echo       if (currentLayer.getBounds().isValid()) {
-
-            echo         map.fitBounds(
-            echo           currentLayer.getBounds(),
-            echo           {
-            echo             padding: [20, 20]
-            echo           }
-            echo         );
-
-            echo       }
-
-            echo       statusText.innerHTML =
-            echo         indexName +
-            echo         ' - ' +
-            echo         data.features.length +
-            echo         ' polygons';
-
-            echo       loading.style.display = 'none';
-
-            echo     })
-
-            echo     .catch(error =^> {
-
-            echo       console.error(error);
-
-            echo       statusText.innerHTML =
-            echo         '^<span class="error"^>' +
-            echo         'Error loading ' +
-            echo         indexName +
-            echo         '^</span^>';
-
-            echo       loading.style.display = 'none';
-
-            echo       alert(
-            echo         'Could not load ' +
-            echo         indexName +
-            echo         '.geojson'
-            echo       );
-
-            echo     });
-
-            echo }
-
-            echo const legend =
-            echo   L.control({
-            echo     position: 'bottomright'
-            echo   });
-
-            echo legend.onAdd = function(map) {
-
-            echo   const div =
-            echo     L.DomUtil.create('div', 'legend');
-
-            echo   div.innerHTML =
-            echo     '^<b^>Drought class^</b^>^<br^>';
-
-            echo   for (let i = 1; i ^<= 5; i++) {
-
-            echo     div.innerHTML +=
-            echo       '^<i style="background:' +
-            echo       classColors[i] +
-            echo       '"^>^</i^>' +
-            echo       classLabels[i] +
-            echo       '^<br^>';
-
-            echo   }
-
-            echo   return div;
-
-            echo };
-
-            echo legend.addTo(map);
-
-            echo document
-            echo   .getElementById('indexSelect')
-            echo   .addEventListener(
-            echo     'change',
-            echo     function() {
-            echo       updateMap(this.value);
-            echo     }
-            echo   );
-
-            echo updateMap('NDDI');
-
-            echo ^</script^>
-
-            echo ^</body^>
-            echo ^</html^>
-
-          ) > "docs\vectors\index.html"
+            box.innerHTML =
+              "Products loaded: " +
+              loadedLayers +
+              " / " +
+              totalLayers;
+          }
+
+          </script>
+
+          </body>
+          </html>
+          ''', encoding='utf-8')"
+
+          if errorlevel 1 (
+              echo.
+              echo ERROR: Could not create interactive map.
+              exit /b 1
+          )
+
+          echo.
+          echo Interactive map created successfully.
+
+
+          # ========================================================
+          # SHOW WEB FILES
+          # ========================================================
 
           echo.
           echo ==============================================
@@ -588,71 +790,25 @@ jobs:
             echo ^<meta charset="UTF-8"^>
             echo ^<meta name="viewport" content="width=device-width, initial-scale=1.0"^>
             echo ^<title^>El Salvador Drought Monitoring^</title^>
-
             echo ^<style^>
-
-            echo body {
-            echo   font-family: Arial, sans-serif;
-            echo   margin: 40px;
-            echo }
-
-            echo h1 {
-            echo   margin-bottom: 10px;
-            echo }
-
-            echo .box {
-            echo   padding: 20px;
-            echo   border: 1px solid #ccc;
-            echo   border-radius: 8px;
-            echo   max-width: 800px;
-            echo }
-
-            echo a {
-            echo   text-decoration: none;
-            echo }
-
-            echo .map-button {
-            echo   display: inline-block;
-            echo   margin-top: 10px;
-            echo   padding: 12px 18px;
-            echo   background: #333;
-            echo   color: white;
-            echo   border-radius: 6px;
-            echo }
-
+            echo body { font-family: Arial, sans-serif; margin: 40px; }
+            echo h1 { margin-bottom: 10px; }
+            echo .box { padding: 20px; border: 1px solid #ccc; border-radius: 8px; max-width: 800px; }
+            echo a { text-decoration: none; }
+            echo .map-button { display: inline-block; margin-top: 10px; padding: 12px 18px; background: #333; color: white; border-radius: 6px; }
             echo ^</style^>
-
             echo ^</head^>
-
             echo ^<body^>
-
             echo ^<h1^>El Salvador Drought Monitoring^</h1^>
-
             echo ^<div class="box"^>
-
-            echo ^<p^>
-            echo Automated drought-monitoring products derived from Sentinel-2 L2A.
-            echo ^</p^>
-
-            echo ^<p^>
-            echo Latest products are automatically updated by the local processing system.
-            echo ^</p^>
-
+            echo ^<p^>Automated drought-monitoring products derived from Sentinel-2 L2A.^</p^>
+            echo ^<p^>Latest products are automatically updated by the local processing system.^</p^>
             echo ^<h2^>Interactive Map^</h2^>
-
-            echo ^<p^>
-            echo Explore the latest drought-monitoring products interactively.
-            echo ^</p^>
-
-            echo ^<a class="map-button" href="vectors/"^>
-            echo Open Interactive Map
-            echo ^</a^>
-
+            echo ^<p^>Explore the latest drought-monitoring products interactively.^</p^>
+            echo ^<a class="map-button" href="vectors/"^>Open Interactive Map^</a^>
             echo ^</div^>
-
             echo ^</body^>
             echo ^</html^>
-
           ) > "docs\index.html"
 
           echo.
@@ -707,7 +863,7 @@ jobs:
           echo.
           echo Creating commit...
 
-          git commit -m "Update drought monitoring web products"
+          git commit -m "Update interactive drought monitoring map"
 
           if errorlevel 1 (
 
@@ -738,3 +894,4 @@ jobs:
           echo.
           echo GitHub Pages:
           echo https://rodrigomundo12.github.io/Sequias/
+
