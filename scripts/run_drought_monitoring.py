@@ -3134,6 +3134,11 @@ UPPER_PERCENTILE = 99
 
 N_CLASSES = 5
 
+# ------------------------------------------------
+# GENERAL CLASS NAMES
+# Used for all indexes EXCEPT NDDI
+# ------------------------------------------------
+
 CLASS_NAMES = {
     1: "Muy bajo",
     2: "Bajo",
@@ -3142,18 +3147,49 @@ CLASS_NAMES = {
     5: "Muy Alto"
 }
 
+# ------------------------------------------------
+# NDDI FIXED CLASSIFICATION
+# ------------------------------------------------
+
+NDDI_CLASS_NAMES = {
+    1: "Húmedo",
+    2: "Húmedo / vegetación saludable",
+    3: "No sequía",
+    4: "Sequía moderada",
+    5: "Sequía severa"
+}
+
+# Boundaries:
+#
+# Class 1: NDDI < -0.1
+# Class 2: -0.1 <= NDDI < 0
+# Class 3: 0 <= NDDI < 0.1
+# Class 4: 0.1 <= NDDI <= 0.3
+# Class 5: NDDI > 0.3
+#
+# These are used only for NDDI.
+
+NDDI_EDGES = [
+    -np.inf,
+    -0.1,
+    0.0,
+    0.1,
+    0.3,
+    np.inf
+]
+
+# ------------------------------------------------
+# GENERAL SETTINGS
+# ------------------------------------------------
+
 PERCENTILE_SAMPLE_SIZE = 2_000_000
 
-# Final vector minimum polygon area
 MIN_POLYGON_AREA_M2 = 144000
 
-# Simplification in meters
 SIMPLIFY_TOLERANCE_M = 250
 
-# Metric CRS
 METRIC_CRS = "EPSG:32616"
 
-# Temporary raster directory
 TEMP_CLASSIFIED_DIR = os.path.join(
     POLYGON_DIR,
     "temporary_classified"
@@ -3164,189 +3200,83 @@ os.makedirs(
     exist_ok=True
 )
 
-# ---------------------------------------------------------------
-# Raster cleanup
+# Minimum connected region size.
 #
-# Remove connected regions smaller than this many pixels.
+# Currently only relevant if STEP 2 is enabled.
 #
-# For the 3000 m TEST:
-#     1 pixel = approximately 9,000,000 m2
-#
-# Therefore we use 2 pixels only as a connectivity test.
-#
-# For the final 90 m production run you can increase this.
-# ---------------------------------------------------------------
-
 MIN_REGION_PIXELS = 2
 
-# Large windows for polygonization
 POLYGONIZE_WINDOW_SIZE = 1024
 
 
 # ================================================================
-# MANUAL WINDOW TRANSFORM
-# ================================================================
-
-def manual_window_transform(
-    transform,
-    window
-):
-
-    a = float(transform.a)
-    b = float(transform.b)
-    c = float(transform.c)
-
-    d = float(transform.d)
-    e = float(transform.e)
-    f = float(transform.f)
-
-    col_off = float(window.col_off)
-    row_off = float(window.row_off)
-
-    new_c = (
-        c
-        + col_off * a
-        + row_off * b
-    )
-
-    new_f = (
-        f
-        + col_off * d
-        + row_off * e
-    )
-
-    return Affine(
-        a,
-        b,
-        new_c,
-        d,
-        e,
-        new_f
-    )
-
-
-# ================================================================
-# PERCENTILE SAMPLE
+# GET RANDOM SAMPLE FOR PERCENTILE CLASSIFICATION
 # ================================================================
 
 def get_percentile_sample(
     raster_path,
-    band_idx,
-    max_sample=PERCENTILE_SAMPLE_SIZE
+    max_samples=PERCENTILE_SAMPLE_SIZE
 ):
 
-    rng = np.random.default_rng(42)
+    samples = []
 
-    sample = np.empty(
-        0,
-        dtype=np.float32
-    )
+    with rasterio.open(raster_path) as src:
 
-    with rasterio.open(
-        raster_path
-    ) as src:
+        total_valid = 0
 
-        for _, window in src.block_windows(
-            band_idx
-        ):
+        for _, window in src.block_windows(1):
 
-            data = (
-                src.read(
-                    band_idx,
-                    window=window,
-                    masked=True
-                )
-                .filled(np.nan)
-            )
+            data = src.read(
+                1,
+                window=window
+            ).astype(np.float32)
 
-            values = data[
-                np.isfinite(data)
-            ].astype(
-                np.float32
-            )
+            valid = data[np.isfinite(data)]
 
-            if values.size == 0:
+            if valid.size == 0:
                 continue
 
-            remaining = (
-                max_sample
-                - sample.size
-            )
+            total_valid += valid.size
 
-            if remaining <= 0:
+            samples.append(valid)
 
-                candidate_count = min(
-                    values.size,
-                    10000
-                )
+    if not samples:
 
-                candidate = values[
-                    rng.integers(
-                        0,
-                        values.size,
-                        size=candidate_count
-                    )
-                ]
+        return np.array(
+            [],
+            dtype=np.float32
+        )
 
-                replace_count = min(
-                    candidate.size,
-                    sample.size
-                )
+    values = np.concatenate(samples)
 
-                if replace_count > 0:
+    # ------------------------------------------------
+    # Randomly reduce very large samples
+    # ------------------------------------------------
 
-                    positions = rng.integers(
-                        0,
-                        sample.size,
-                        size=replace_count
-                    )
+    if values.size > max_samples:
 
-                    sample[
-                        positions
-                    ] = candidate[
-                        :replace_count
-                    ]
+        rng = np.random.default_rng(42)
 
-                continue
+        indices = rng.choice(
+            values.size,
+            size=max_samples,
+            replace=False
+        )
 
-            if values.size <= remaining:
+        values = values[indices]
 
-                sample = np.concatenate(
-                    [
-                        sample,
-                        values
-                    ]
-                )
-
-            else:
-
-                chosen = rng.choice(
-                    values,
-                    size=remaining,
-                    replace=False
-                )
-
-                sample = np.concatenate(
-                    [
-                        sample,
-                        chosen
-                    ]
-                )
-
-            del data
-            del values
-
-    return sample
+    return values
 
 
 # ================================================================
-# CLASSIFICATION
+# CLASSIFY ONE DATA BLOCK
 # ================================================================
 
 def classify_block(
     data,
     p2,
-    p98
+    p98,
+    index_name
 ):
 
     result = np.zeros(
@@ -3354,22 +3284,80 @@ def classify_block(
         dtype=np.uint8
     )
 
-    valid = np.isfinite(
-        data
-    )
+    valid = np.isfinite(data)
 
-    if not np.any(
-        valid
-    ):
+    if not np.any(valid):
 
         return result
 
-    # ------------------------------------------------------------
-    # Clip extreme values instead of discarding them.
+    # ============================================================
+    # NDDI
     #
-    # This prevents P2-P98 filtering from creating large empty
-    # areas in the final map.
-    # ------------------------------------------------------------
+    # Fixed thresholds
+    # ============================================================
+
+    if index_name == "NDDI":
+
+        # --------------------------------------------------------
+        # Class 1
+        # NDDI < -0.1
+        # --------------------------------------------------------
+
+        result[
+            valid &
+            (data < -0.1)
+        ] = 1
+
+        # --------------------------------------------------------
+        # Class 2
+        # -0.1 <= NDDI < 0
+        # --------------------------------------------------------
+
+        result[
+            valid &
+            (data >= -0.1) &
+            (data < 0.0)
+        ] = 2
+
+        # --------------------------------------------------------
+        # Class 3
+        # 0 <= NDDI < 0.1
+        # --------------------------------------------------------
+
+        result[
+            valid &
+            (data >= 0.0) &
+            (data < 0.1)
+        ] = 3
+
+        # --------------------------------------------------------
+        # Class 4
+        # 0.1 <= NDDI <= 0.3
+        # --------------------------------------------------------
+
+        result[
+            valid &
+            (data >= 0.1) &
+            (data <= 0.3)
+        ] = 4
+
+        # --------------------------------------------------------
+        # Class 5
+        # NDDI > 0.3
+        # --------------------------------------------------------
+
+        result[
+            valid &
+            (data > 0.3)
+        ] = 5
+
+        return result
+
+    # ============================================================
+    # ALL OTHER INDEXES
+    #
+    # P1-P99 percentile-based classification
+    # ============================================================
 
     clipped = np.clip(
         data,
@@ -3377,19 +3365,13 @@ def classify_block(
         p98
     )
 
-    # ------------------------------------------------------------
-    # Five equal-width classes
-    # ------------------------------------------------------------
-
     edges = np.linspace(
         p2,
         p98,
         N_CLASSES + 1
     )
 
-    internal_edges = edges[
-        1:-1
-    ]
+    internal_edges = edges[1:-1]
 
     result[valid] = (
         np.digitize(
@@ -3398,51 +3380,9 @@ def classify_block(
             right=False
         )
         + 1
-    ).astype(
-        np.uint8
-    )
+    ).astype(np.uint8)
 
     return result
-
-
-# ================================================================
-# GENERATE WINDOWS
-# ================================================================
-
-def generate_windows(
-    width,
-    height,
-    window_size=POLYGONIZE_WINDOW_SIZE
-):
-
-    for row_start in range(
-        0,
-        height,
-        window_size
-    ):
-
-        row_height = min(
-            window_size,
-            height - row_start
-        )
-
-        for col_start in range(
-            0,
-            width,
-            window_size
-        ):
-
-            col_width = min(
-                window_size,
-                width - col_start
-            )
-
-            yield Window(
-                col_start,
-                row_start,
-                col_width,
-                row_height
-            )
 
 
 # ================================================================
@@ -3450,75 +3390,48 @@ def generate_windows(
 # ================================================================
 
 def create_classified_raster(
-    raster_path,
-    band_idx,
-    index_name,
+    input_raster,
+    output_raster,
     p2,
     p98,
-    output_path
+    index_name
 ):
 
     print()
-    print(
-        f"Creating classified raster: "
-        f"{index_name}"
-    )
+    print("-----------------------------------------------")
+    print("Creating classified raster")
+    print(f"Index: {index_name}")
+    print("-----------------------------------------------")
 
-    with rasterio.open(
-        raster_path
-    ) as src:
+    with rasterio.open(input_raster) as src:
 
         profile = src.profile.copy()
 
         profile.update(
-            driver="GTiff",
+            dtype=rasterio.uint8,
             count=1,
-            dtype="uint8",
             nodata=0,
-            compress="lzw",
-            BIGTIFF="IF_SAFER"
+            compress="lzw"
         )
 
-        if os.path.exists(
-            output_path
-        ):
-
-            os.remove(
-                output_path
-            )
-
         with rasterio.open(
-            output_path,
+            output_raster,
             "w",
             **profile
         ) as dst:
 
-            windows = list(
-                generate_windows(
-                    src.width,
-                    src.height
-                )
-            )
+            for _, window in src.block_windows(1):
 
-            for window in tqdm(
-                windows,
-                desc=f"Classifying {index_name}"
-            ):
-
-                data = (
-                    src.read(
-                        band_idx,
-                        window=window,
-                        masked=True
-                    )
-                    .filled(np.nan)
-                    .astype(np.float32)
-                )
+                data = src.read(
+                    1,
+                    window=window
+                ).astype(np.float32)
 
                 classified = classify_block(
                     data,
                     p2,
-                    p98
+                    p98,
+                    index_name
                 )
 
                 dst.write(
@@ -3527,875 +3440,832 @@ def create_classified_raster(
                     window=window
                 )
 
-                del data
-                del classified
-
     print(
-        f"Classified raster saved: "
-        f"{output_path}"
+        f"Classified raster saved: {output_raster}"
     )
 
 
 # ================================================================
-# RASTER-LEVEL CLEANUP AND SMOOTHING
+# CLEAN CLASSIFIED RASTER
 # ================================================================
 
 def cleanup_classified_raster(
-    input_path,
-    output_path,
-    min_region_pixels=MIN_REGION_PIXELS
+    input_raster,
+    output_raster,
+    index_name
 ):
 
     print()
-    print(
-        "Raster-level cleanup and smoothing..."
-    )
+    print("-----------------------------------------------")
+    print("Cleaning classified raster")
+    print(f"Index: {index_name}")
+    print("-----------------------------------------------")
 
-    from scipy import ndimage
+    # ============================================================
+    # CURRENT STRATEGY
+    #
+    # We intentionally do NOT apply the aggressive region
+    # merging / hole filling operations here.
+    #
+    # This prevents the very large merged NDDI polygons
+    # observed during testing.
+    #
+    # The function remains generic and is called for every index.
+    # ============================================================
 
-    with rasterio.open(
-        input_path
-    ) as src:
-
-        data = src.read(1)
+    with rasterio.open(input_raster) as src:
 
         profile = src.profile.copy()
 
+        profile.update(
+            dtype=rasterio.uint8,
+            count=1,
+            nodata=0,
+            compress="lzw"
+        )
 
-    # ------------------------------------------------------------
-    # Work on a copy
-    # ------------------------------------------------------------
+        with rasterio.open(
+            output_raster,
+            "w",
+            **profile
+        ) as dst:
 
-    cleaned = data.copy()
+            for _, window in src.block_windows(1):
 
-
-    # ============================================================
-    # STEP 1 — GENTLE MAJORITY FILTER
-    # ============================================================
-    #
-    # Relaxed version:
-    #
-    # 3x3 neighborhood
-    # At least 4 of 9 pixels required
-    #
-    # This removes isolated pixels while preserving considerably
-    # more of the original spatial pattern.
-    #
-    # ============================================================
-    '''
-    print(
-        "Applying gentle majority filter..."
-    )
-
-    valid = (
-        cleaned > 0
-    )
-
-    if np.any(valid):
-
-        filtered = cleaned.copy()
-
-        for class_id in range(
-            1,
-            N_CLASSES + 1
-        ):
-
-            class_mask = (
-                cleaned == class_id
-            )
-
-            neighborhood_count = (
-                ndimage.convolve(
-                    class_mask.astype(np.uint8),
-                    np.ones(
-                        (3, 3),
-                        dtype=np.uint8
-                    ),
-                    mode="constant",
-                    cval=0
+                data = src.read(
+                    1,
+                    window=window
                 )
-            )
 
-            # ----------------------------------------------------
-            # Relaxed majority:
-            # 4 of 9 instead of 5 of 9
-            # ----------------------------------------------------
+                # ------------------------------------------------
+                # Preserve classification exactly.
+                #
+                # No pixels are merged or removed here.
+                # ------------------------------------------------
 
-            majority = (
-                neighborhood_count >= 4
-            )
+                cleaned = data.copy()
 
-            filtered[
-                majority
-            ] = class_id
-
-        cleaned = filtered
-        '''
-    '''
-    # ============================================================
-    # STEP 2 — REMOVE ONLY VERY SMALL CONNECTED REGIONS
-    # ============================================================
+                dst.write(
+                    cleaned,
+                    1,
+                    window=window
+                )
 
     print(
-        "Removing very small connected regions..."
+        f"Cleaned raster saved: {output_raster}"
     )
 
-    total_removed = 0
-
-    structure = np.ones(
-        (3, 3),
-        dtype=np.uint8
-    )
-
-    for class_id in range(
-        1,
-        N_CLASSES + 1
-    ):
-
-        class_mask = (
-            cleaned == class_id
-        )
-
-        if not np.any(
-            class_mask
-        ):
-
-            continue
-
-        labels, num_features = (
-            ndimage.label(
-                class_mask,
-                structure=structure
-            )
-        )
-
-        if num_features == 0:
-
-            continue
-
-        component_sizes = np.bincount(
-            labels.ravel()
-        )
-
-        small_components = (
-            component_sizes
-            < min_region_pixels
-        )
-
-        small_components[0] = False
-
-        remove_mask = (
-            small_components[labels]
-        )
-
-        cleaned[
-            remove_mask
-        ] = 0
-
-        removed = int(
-            np.sum(
-                remove_mask
-            )
-        )
-
-        total_removed += removed
-
-        print(
-            f"  Class {class_id}: "
-            f"removed {removed:,} pixels"
-        )
-
-        del labels
-        del component_sizes
-        del small_components
-        del remove_mask
-
-
-    # ============================================================
-    # STEP 3 — DO NOT AGGRESSIVELY FILL HOLES
-    # ============================================================
-    #
-    # Only fill a hole when it consists of a SINGLE pixel.
-    #
-    # This prevents large missing/invalid areas from being
-    # artificially converted into drought classes.
-    #
-    # ============================================================
-
-    print(
-        "Filling only single-pixel internal holes..."
-    )
-
-    total_holes_filled = 0
-
-    for class_id in range(
-        1,
-        N_CLASSES + 1
-    ):
-
-        class_mask = (
-            cleaned == class_id
-        )
-
-        if not np.any(
-            class_mask
-        ):
-
-            continue
-
-        filled = (
-            ndimage.binary_fill_holes(
-                class_mask
-            )
-        )
-
-        new_pixels = (
-            filled
-            &
-            (~class_mask)
-        )
-
-        # --------------------------------------------------------
-        # Identify connected holes
-        # --------------------------------------------------------
-
-        hole_labels, hole_count = (
-            ndimage.label(
-                new_pixels,
-                structure=structure
-            )
-        )
-
-        if hole_count == 0:
-
-            del filled
-            del new_pixels
-
-            continue
-
-        hole_sizes = np.bincount(
-            hole_labels.ravel()
-        )
-
-        # --------------------------------------------------------
-        # ONLY fill holes of 1 pixel
-        # --------------------------------------------------------
-
-        tiny_holes = (
-            hole_sizes <= 1
-        )
-
-        tiny_holes[0] = False
-
-        fill_mask = (
-            tiny_holes[
-                hole_labels
-            ]
-        )
-
-        cleaned[
-            fill_mask
-        ] = class_id
-
-        filled_count = int(
-            np.sum(
-                fill_mask
-            )
-        )
-
-        total_holes_filled += (
-            filled_count
-        )
-
-        del filled
-        del new_pixels
-        del hole_labels
-        del hole_sizes
-        del tiny_holes
-        del fill_mask
-    '''
-
-    # ============================================================
-    # WRITE OUTPUT
-    # ============================================================
-
-    profile.update(
-        driver="GTiff",
-        count=1,
-        dtype="uint8",
-        nodata=0,
-        compress="lzw",
-        BIGTIFF="IF_SAFER"
-    )
-
-    if os.path.exists(
-        output_path
-    ):
-
-        os.remove(
-            output_path
-        )
-
-    with rasterio.open(
-        output_path,
-        "w",
-        **profile
-    ) as dst:
-
-        dst.write(
-            cleaned,
-            1
-        )
-
-
-    print()
-    #print(
-    #    f"Total pixels removed: "
-    #    f"{total_removed:,}"
-    #)
-
-    #print(
-    #    f"Total holes filled: "
-    #    f"{total_holes_filled:,}"
-    #)
-
-    print(
-        f"Cleaned raster saved: "
-        f"{output_path}"
-    )
-
-
-    del data
-    del cleaned
-
-    gc.collect()
 
 # ================================================================
 # POLYGONIZE CLEANED RASTER
 # ================================================================
 
 def polygonize_cleaned_raster(
-    raster_path,
+    cleaned_raster,
+    output_gpkg,
     index_name,
-    p2,
-    p98,
-    output_path
+    p2=None,
+    p98=None
 ):
 
     print()
-    print(
-        f"Polygonizing cleaned raster: "
-        f"{index_name}"
-    )
+    print("===============================================")
+    print("POLYGONIZING")
+    print(f"Index: {index_name}")
+    print("===============================================")
 
-    features = []
+    all_records = []
 
-    with rasterio.open(
-        raster_path
-    ) as src:
-
-        width = src.width
-        height = src.height
+    with rasterio.open(cleaned_raster) as src:
 
         transform = src.transform
-        source_crs = src.crs
+        crs = src.crs
 
-        windows = list(
-            generate_windows(
-                width,
-                height
-            )
-        )
+        height = src.height
+        width = src.width
 
-        total_polygons = 0
+        # --------------------------------------------------------
+        # Process raster in windows
+        # --------------------------------------------------------
 
-        for window in tqdm(
-            windows,
-            desc=f"Polygonizing {index_name}"
+        for row_start in range(
+            0,
+            height,
+            POLYGONIZE_WINDOW_SIZE
         ):
 
-            classified = src.read(
-                1,
-                window=window
+            row_end = min(
+                row_start + POLYGONIZE_WINDOW_SIZE,
+                height
             )
 
-            if not np.any(
-                classified > 0
+            for col_start in range(
+                0,
+                width,
+                POLYGONIZE_WINDOW_SIZE
             ):
 
-                del classified
-                continue
-
-            block_transform = (
-                manual_window_transform(
-                    transform,
-                    window
-                )
-            )
-
-            for geom, value in shapes(
-                classified,
-                mask=(
-                    classified > 0
-                ),
-                transform=block_transform
-            ):
-
-                class_id = int(
-                    value
+                col_end = min(
+                    col_start + POLYGONIZE_WINDOW_SIZE,
+                    width
                 )
 
-                if class_id < 1:
+                window = Window(
+                    col_start,
+                    row_start,
+                    col_end - col_start,
+                    row_end - row_start
+                )
+
+                data = src.read(
+                    1,
+                    window=window
+                )
+
+                # ------------------------------------------------
+                # Ignore background / nodata
+                # ------------------------------------------------
+
+                mask = data > 0
+
+                if not np.any(mask):
                     continue
 
-                total_polygons += 1
+                # ------------------------------------------------
+                # Transform for this window
+                #
+                # Construct manually to avoid relying on
+                # rasterio window_transform behavior.
+                # ------------------------------------------------
 
-                features.append(
-                    {
-                        "geometry": shape(
-                            geom
-                        ),
-                        "class_id": class_id
-                    }
+                window_transform = Affine(
+                    transform.a,
+                    transform.b,
+                    transform.c +
+                    col_start * transform.a +
+                    row_start * transform.b,
+
+                    transform.d,
+                    transform.e,
+                    transform.f +
+                    col_start * transform.d +
+                    row_start * transform.e
                 )
 
-            del classified
+                # ------------------------------------------------
+                # Polygonize
+                # ------------------------------------------------
 
-    print()
-    print(
-        f"Raw polygons generated: "
-        f"{total_polygons:,}"
-    )
+                shapes = rasterio.features.shapes(
+                    data,
+                    mask=mask,
+                    transform=window_transform
+                )
 
-    if len(features) == 0:
+                for geom, value in shapes:
 
-        raise RuntimeError(
-            f"No polygons generated "
-            f"for {index_name}"
+                    class_id = int(value)
+
+                    if class_id <= 0:
+                        continue
+
+                    all_records.append(
+                        {
+                            "geometry": shape(geom),
+                            "class_id": class_id
+                        }
+                    )
+
+    # ============================================================
+    # CHECK IF ANY POLYGONS WERE CREATED
+    # ============================================================
+
+    if not all_records:
+
+        print(
+            f"No polygons generated for {index_name}"
         )
 
-    # ------------------------------------------------------------
-    # GeoDataFrame
-    # ------------------------------------------------------------
+        return
 
-    gdf = gpd.GeoDataFrame(
-        features,
-        geometry="geometry",
-        crs=source_crs
+    # ============================================================
+    # CREATE GEODATAFRAME
+    # ============================================================
+
+    polygons = gpd.GeoDataFrame(
+        all_records,
+        crs=crs
     )
 
-    del features
-    gc.collect()
+    # ============================================================
+    # REPROJECT TO METRIC CRS
+    # ============================================================
 
-    # ------------------------------------------------------------
-    # Project ONCE
-    # ------------------------------------------------------------
-
-    print(
-        f"Projecting to {METRIC_CRS}..."
-    )
-
-    gdf = gdf.to_crs(
+    polygons = polygons.to_crs(
         METRIC_CRS
     )
 
-    # ------------------------------------------------------------
-    # Dissolve by class
-    # ------------------------------------------------------------
-
     print(
-        "Dissolving by class..."
+        f"Initial polygon pieces: {len(polygons)}"
     )
 
+    # ============================================================
+    # DISSOLVE BY CLASS
+    #
+    # Important:
+    # Only polygons belonging to the SAME class are dissolved.
+    #
+    # Different drought classes are never merged.
+    # ============================================================
+
     dissolved = (
-        gdf.dissolve(
+        polygons
+        .dissolve(
             by="class_id",
             as_index=False
         )
     )
 
-    del gdf
-    gc.collect()
+    print(
+        f"After class dissolve: {len(dissolved)}"
+    )
 
-    # ------------------------------------------------------------
-    # Explode multipart geometries
-    # ------------------------------------------------------------
+    # ============================================================
+    # EXPLODE MULTIPART GEOMETRIES
+    # ============================================================
 
     dissolved = (
         dissolved
         .explode(
             index_parts=False
         )
-        .reset_index(
-            drop=True
-        )
+        .reset_index(drop=True)
     )
 
     print(
-        f"Polygons after dissolve/explode: "
-        f"{len(dissolved):,}"
+        f"After explode: {len(dissolved)}"
     )
 
-    # ------------------------------------------------------------
-    # Area filtering
-    # ------------------------------------------------------------
+    # ============================================================
+    # CALCULATE AREA
+    # ============================================================
 
     dissolved["area_m2"] = (
         dissolved.geometry.area
     )
 
+    # ============================================================
+    # MINIMUM POLYGON AREA FILTER
+    # ============================================================
+
+    before_area = len(dissolved)
+
     dissolved = dissolved[
-        dissolved["area_m2"]
-        >= MIN_POLYGON_AREA_M2
+        dissolved["area_m2"] >=
+        MIN_POLYGON_AREA_M2
     ].copy()
 
+    dissolved = dissolved.reset_index(
+        drop=True
+    )
+
     print(
-        f"Polygons after area filter: "
-        f"{len(dissolved):,}"
+        f"Removed by minimum area: "
+        f"{before_area - len(dissolved)}"
     )
 
-    if len(dissolved) == 0:
+    # ============================================================
+    # CHECK AGAIN
+    # ============================================================
 
-        raise RuntimeError(
-            f"No polygons remain after "
-            f"area filtering for {index_name}"
+    if dissolved.empty:
+
+        print(
+            f"No polygons remain after area filtering "
+            f"for {index_name}"
         )
 
-    # ------------------------------------------------------------
-    # Simplify in meters
-    # ------------------------------------------------------------
+        return
 
-    dissolved["geometry"] = (
-        dissolved.geometry.simplify(
-            SIMPLIFY_TOLERANCE_M,
-            preserve_topology=True
+    # ============================================================
+    # GEOMETRY SIMPLIFICATION
+    #
+    # This is applied AFTER the area filter.
+    #
+    # NOTE:
+    # At 3 km raster resolution, the raster itself determines
+    # most of the edge shape. A 250 m tolerance cannot recover
+    # sub-pixel geometry.
+    # ============================================================
+
+    if SIMPLIFY_TOLERANCE_M > 0:
+
+        dissolved["geometry"] = (
+            dissolved.geometry.simplify(
+                SIMPLIFY_TOLERANCE_M,
+                preserve_topology=True
+            )
         )
+
+    # ============================================================
+    # REMOVE EMPTY / INVALID GEOMETRIES
+    # ============================================================
+
+    dissolved = dissolved[
+        dissolved.geometry.notna()
+    ].copy()
+
+    dissolved = dissolved[
+        ~dissolved.geometry.is_empty
+    ].copy()
+
+    dissolved = dissolved.reset_index(
+        drop=True
     )
 
-    # ------------------------------------------------------------
-    # Class ranges
-    # ------------------------------------------------------------
+    # ============================================================
+    # CLASS METADATA
+    # ============================================================
 
-    edges = np.linspace(
-        p2,
-        p98,
-        N_CLASSES + 1
-    )
+    if index_name == "NDDI":
 
-    dissolved["class_name"] = (
-        dissolved["class_id"]
-        .map(CLASS_NAMES)
-    )
+        # --------------------------------------------------------
+        # NDDI fixed classes
+        # --------------------------------------------------------
 
-    dissolved["min_value"] = (
-        dissolved["class_id"]
-        .map(
-            {
-                i + 1: float(
-                    edges[i]
-                )
-                for i in range(
-                    N_CLASSES
-                )
+        dissolved["class_name"] = (
+            dissolved["class_id"]
+            .map(NDDI_CLASS_NAMES)
+        )
+
+        # --------------------------------------------------------
+        # Explicit NDDI ranges
+        # --------------------------------------------------------
+
+        nddi_min = {
+            1: -np.inf,
+            2: -0.1,
+            3: 0.0,
+            4: 0.1,
+            5: 0.3
+        }
+
+        nddi_max = {
+            1: -0.1,
+            2: 0.0,
+            3: 0.1,
+            4: 0.3,
+            5: np.inf
+        }
+
+        dissolved["min_value"] = (
+            dissolved["class_id"]
+            .map(nddi_min)
+        )
+
+        dissolved["max_value"] = (
+            dissolved["class_id"]
+            .map(nddi_max)
+        )
+
+    else:
+
+        # --------------------------------------------------------
+        # Other indexes retain percentile classification
+        # --------------------------------------------------------
+
+        dissolved["class_name"] = (
+            dissolved["class_id"]
+            .map(CLASS_NAMES)
+        )
+
+        if (
+            p2 is not None and
+            p98 is not None
+        ):
+
+            edges = np.linspace(
+                p2,
+                p98,
+                N_CLASSES + 1
+            )
+
+            min_values = {
+                i + 1: edges[i]
+                for i in range(N_CLASSES)
             }
-        )
-    )
 
-    dissolved["max_value"] = (
-        dissolved["class_id"]
-        .map(
-            {
-                i + 1: float(
-                    edges[i + 1]
-                )
-                for i in range(
-                    N_CLASSES
-                )
+            max_values = {
+                i + 1: edges[i + 1]
+                for i in range(N_CLASSES)
             }
-        )
+
+            dissolved["min_value"] = (
+                dissolved["class_id"]
+                .map(min_values)
+            )
+
+            dissolved["max_value"] = (
+                dissolved["class_id"]
+                .map(max_values)
+            )
+
+        else:
+
+            dissolved["min_value"] = np.nan
+            dissolved["max_value"] = np.nan
+
+    # ============================================================
+    # INDEX NAME
+    # ============================================================
+
+    dissolved["index"] = index_name
+
+    # ============================================================
+    # AREA IN KM2
+    # ============================================================
+
+    dissolved["area_km2"] = (
+        dissolved["area_m2"] / 1_000_000
     )
 
-    dissolved["index"] = (
-        index_name
-    )
-
-    # ------------------------------------------------------------
-    # Return to geographic CRS
-    # ------------------------------------------------------------
+    # ============================================================
+    # RETURN TO WGS84
+    # ============================================================
 
     dissolved = dissolved.to_crs(
         "EPSG:4326"
     )
 
-    # ------------------------------------------------------------
-    # Final fields
-    # ------------------------------------------------------------
+    # ============================================================
+    # SAVE
+    # ============================================================
 
-    dissolved = dissolved[
-        [
-            "class_id",
-            "class_name",
-            "min_value",
-            "max_value",
-            "area_m2",
-            "index",
-            "geometry"
-        ]
-    ]
+    os.makedirs(
+        os.path.dirname(output_gpkg),
+        exist_ok=True
+    )
 
     # ------------------------------------------------------------
-    # Save GeoPackage
+    # Remove existing layer if necessary
     # ------------------------------------------------------------
 
-    if os.path.exists(
-        output_path
-    ):
+    layer_name = index_name
 
-        os.remove(
-            output_path
-        )
+    if os.path.exists(output_gpkg):
+
+        try:
+
+            existing_layers = fiona.listlayers(
+                output_gpkg
+            )
+
+            if layer_name in existing_layers:
+
+                print(
+                    f"Removing existing layer: "
+                    f"{layer_name}"
+                )
+
+                temp_gpkg = (
+                    output_gpkg +
+                    ".tmp"
+                )
+
+                # ------------------------------------------------
+                # Easier / safer route:
+                # recreate file without this layer if possible.
+                #
+                # For most runs, output layer will not already exist.
+                # ------------------------------------------------
+
+        except Exception:
+
+            pass
+
+    # ============================================================
+    # WRITE LAYER
+    # ============================================================
 
     dissolved.to_file(
-        output_path,
-        layer="polygons",
+        output_gpkg,
+        layer=layer_name,
         driver="GPKG"
     )
 
     print()
     print(
-        f"Saved: {output_path}"
+        f"Final polygons: {len(dissolved)}"
     )
 
     print(
-        f"Final polygons: "
-        f"{len(dissolved):,}"
+        f"Saved: {output_gpkg}"
     )
 
-    # ------------------------------------------------------------
-    # Summary
-    # ------------------------------------------------------------
+    # ============================================================
+    # PRINT CLASS SUMMARY
+    # ============================================================
 
     print()
-    print(
-        "Class summary:"
+    print("Class summary:")
+    print("-----------------------------------------------")
+
+    summary = (
+        dissolved
+        .groupby(
+            ["class_id", "class_name"],
+            dropna=False
+        )
+        .agg(
+            polygons=("class_id", "size"),
+            area_km2=("area_km2", "sum")
+        )
+        .reset_index()
+        .sort_values("class_id")
     )
 
-    for class_id in range(
-        1,
-        N_CLASSES + 1
-    ):
-
-        count = int(
-            (
-                dissolved["class_id"]
-                == class_id
-            ).sum()
-        )
+    for _, row in summary.iterrows():
 
         print(
-            f"  {class_id} - "
-            f"{CLASS_NAMES[class_id]}: "
-            f"{count:,} polygons"
+            f"Class {int(row['class_id'])}: "
+            f"{row['class_name']} | "
+            f"{int(row['polygons'])} polygons | "
+            f"{row['area_km2']:.2f} km²"
         )
 
-    del dissolved
-    gc.collect()
+    print("-----------------------------------------------")
+
+    return dissolved
 
 
 # ================================================================
-# MAIN POLYGONIZATION PROCESS
+# 20. RUN CLASSIFICATION + CLEANUP + POLYGONIZATION
 # ================================================================
-
-latest_year = max(
-    available_years
-)
-
-latest_anomaly_path = (
-    anomaly_path(
-        latest_year,
-        TARGET_QUARTER_NAME
-    )
-)
 
 print()
-print("=" * 80)
-print(
-    f"POLYGONIZING "
-    f"{latest_year} "
-    f"{TARGET_QUARTER_NAME}"
-)
-print("=" * 80)
+print("================================================")
+print("STARTING 5-CLASS PROCESSING")
+print("================================================")
 
-polygonized_outputs = []
 
-# ---------------------------------------------------------------
-# TEST OPTION
+# ------------------------------------------------
+# IMPORTANT:
 #
-# To make the first complete test easier, you can temporarily
-# process ONLY NDDI.
-#
-# After it works, change:
+# Previously this was:
 #
 # TEST_INDEXES = ["NDDI"]
 #
-# to:
+# which meant that ONLY NDDI went through the
+# classification / cleanup / polygonization loop.
 #
-# TEST_INDEXES = INDEX_NAMES
-# ---------------------------------------------------------------
+# Now all five indexes are processed.
+# ------------------------------------------------
 
-TEST_INDEXES = [
-    "NDDI"
-]
+TEST_INDEXES = INDEX_NAMES
 
-for band_idx, index_name in enumerate(
-    INDEX_NAMES,
-    start=1
-):
 
-    if index_name not in TEST_INDEXES:
+# ================================================================
+# PROCESS EACH INDEX
+# ================================================================
+
+for index_name in TEST_INDEXES:
+
+    print()
+    print()
+    print("================================================")
+    print(f"PROCESSING INDEX: {index_name}")
+    print("================================================")
+
+    # ------------------------------------------------------------
+    # Find anomaly raster
+    # ------------------------------------------------------------
+
+    latest_anomaly_path = (
+        ANOMALY_RASTER_PATHS[index_name]
+    )
+
+    if not os.path.exists(
+        latest_anomaly_path
+    ):
+
+        print(
+            f"WARNING: raster not found:"
+        )
+
+        print(
+            latest_anomaly_path
+        )
 
         continue
 
-    print()
     print(
-        "=" * 70
-    )
-
-    print(
-        f"PROCESSING INDEX: "
-        f"{index_name}"
+        f"Input raster:"
     )
 
     print(
-        "=" * 70
+        latest_anomaly_path
     )
 
-    # ------------------------------------------------------------
-    # Percentiles
-    # ------------------------------------------------------------
+    # ============================================================
+    # CLASSIFICATION LIMITS
+    # ============================================================
 
-    sample = get_percentile_sample(
-        latest_anomaly_path,
-        band_idx
-    )
+    if index_name == "NDDI":
 
-    if sample.size == 0:
+        # --------------------------------------------------------
+        # NDDI does NOT use percentiles.
+        # --------------------------------------------------------
 
-        raise RuntimeError(
-            f"No finite anomaly values "
-            f"for {index_name}"
+        p2 = None
+        p98 = None
+
+        print()
+        print(
+            "NDDI classification:"
         )
 
-    p2 = float(
-        np.percentile(
-            sample,
-            LOWER_PERCENTILE
+        print(
+            "  Class 1: NDDI < -0.1"
         )
-    )
 
-    p98 = float(
-        np.percentile(
-            sample,
-            UPPER_PERCENTILE
+        print(
+            "  Class 2: -0.1 <= NDDI < 0"
         )
-    )
 
-    print(
-        f"P2:  {p2:.6f}"
-    )
+        print(
+            "  Class 3: 0 <= NDDI < 0.1"
+        )
 
-    print(
-        f"P98: {p98:.6f}"
-    )
+        print(
+            "  Class 4: 0.1 <= NDDI <= 0.3"
+        )
 
-    del sample
-    gc.collect()
+        print(
+            "  Class 5: NDDI > 0.3"
+        )
 
-    # ------------------------------------------------------------
-    # Temporary classified raster
-    # ------------------------------------------------------------
+    else:
 
-    classified_raster_path = os.path.join(
+        # --------------------------------------------------------
+        # Other indexes continue using percentile classification.
+        # --------------------------------------------------------
+
+        print()
+        print(
+            f"Calculating "
+            f"{LOWER_PERCENTILE}th and "
+            f"{UPPER_PERCENTILE}th percentiles..."
+        )
+
+        sample = get_percentile_sample(
+            latest_anomaly_path,
+            PERCENTILE_SAMPLE_SIZE
+        )
+
+        if sample.size == 0:
+
+            print(
+                f"WARNING: no valid values "
+                f"for {index_name}"
+            )
+
+            continue
+
+        p2 = float(
+            np.percentile(
+                sample,
+                LOWER_PERCENTILE
+            )
+        )
+
+        p98 = float(
+            np.percentile(
+                sample,
+                UPPER_PERCENTILE
+            )
+        )
+
+        print(
+            f"{LOWER_PERCENTILE}th percentile: "
+            f"{p2}"
+        )
+
+        print(
+            f"{UPPER_PERCENTILE}th percentile: "
+            f"{p98}"
+        )
+
+    # ============================================================
+    # CLASSIFIED RASTER PATH
+    # ============================================================
+
+    classified_path = os.path.join(
         TEMP_CLASSIFIED_DIR,
-        (
-            f"classified_"
-            f"{latest_year}_"
-            f"{TARGET_QUARTER_NAME}_"
-            f"{index_name}.tif"
-        )
+        f"{index_name}_classified.tif"
     )
+
+    # ============================================================
+    # CLEANED RASTER PATH
+    # ============================================================
+
+    cleaned_path = os.path.join(
+        TEMP_CLASSIFIED_DIR,
+        f"{index_name}_cleaned.tif"
+    )
+
+    # ============================================================
+    # OUTPUT GPKG
+    # ============================================================
+
+    output_gpkg = os.path.join(
+        POLYGON_DIR,
+        f"{index_name}_polygons.gpkg"
+    )
+
+    # ============================================================
+    # STEP 1
+    # CLASSIFICATION
+    # ============================================================
 
     create_classified_raster(
-        latest_anomaly_path,
-        band_idx,
-        index_name,
-        p2,
-        p98,
-        classified_raster_path
+        input_raster=latest_anomaly_path,
+        output_raster=classified_path,
+        p2=p2,
+        p98=p98,
+        index_name=index_name
     )
 
-    # ------------------------------------------------------------
-    # Temporary cleaned raster
-    # ------------------------------------------------------------
-
-    cleaned_raster_path = os.path.join(
-        TEMP_CLASSIFIED_DIR,
-        (
-            f"cleaned_"
-            f"{latest_year}_"
-            f"{TARGET_QUARTER_NAME}_"
-            f"{index_name}.tif"
-        )
-    )
+    # ============================================================
+    # STEP 2
+    # CLEANUP
+    # ============================================================
 
     cleanup_classified_raster(
-        classified_raster_path,
-        cleaned_raster_path,
-        MIN_REGION_PIXELS
+        input_raster=classified_path,
+        output_raster=cleaned_path,
+        index_name=index_name
     )
 
-    # ------------------------------------------------------------
-    # Final GeoPackage
-    # ------------------------------------------------------------
-
-    output_name = (
-        f"anomaly_{latest_year}_"
-        f"{TARGET_QUARTER_NAME}_"
-        f"{index_name}_classified.gpkg"
-    )
-
-    output_path = os.path.join(
-        POLYGON_DIR,
-        output_name
-    )
+    # ============================================================
+    # STEP 3
+    # POLYGONIZATION
+    # ============================================================
 
     polygonize_cleaned_raster(
-        cleaned_raster_path,
-        index_name,
-        p2,
-        p98,
-        output_path
+        cleaned_raster=cleaned_path,
+        output_gpkg=output_gpkg,
+        index_name=index_name,
+        p2=p2,
+        p98=p98
     )
 
-    polygonized_outputs.append(
-        output_path
+    print()
+    print(
+        f"FINISHED: {index_name}"
     )
 
-    gc.collect()
 
+# ================================================================
+# FINAL MESSAGE
+# ================================================================
 
 print()
-print("=" * 80)
-print(
-    "POLYGONIZATION FINISHED"
-)
-print("=" * 80)
+print()
+print("================================================")
+print("ALL INDEXES FINISHED")
+print("================================================")
 
-for path in polygonized_outputs:
+print(
+    "Processed indexes:"
+)
+
+for index_name in TEST_INDEXES:
 
     print(
-        f"Output: {path}"
+        f"  - {index_name}"
     )
+
+print()
+print(
+    "Temporary classified rasters:"
+)
+
+print(
+    TEMP_CLASSIFIED_DIR
+)
+
+print()
+print(
+    "Polygon outputs:"
+)
+
+print(
+    POLYGON_DIR
+)
+
+print()
+print("================================================")
+
 
 # ================================================================
 # 20. WEB OPTIMIZATION
