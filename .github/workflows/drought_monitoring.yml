@@ -118,9 +118,9 @@ jobs:
       # ============================================================
 
       - name: Prepare GitHub Pages
-        shell: powershell
+        shell: cmd
         run: |
-          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Write-Host 'PowerShell works!'"
           Write-Host "=============================================="
           Write-Host "PREPARING GITHUB PAGES"
           Write-Host "=============================================="
@@ -752,9 +752,9 @@ jobs:
       # ============================================================
 
       - name: Create GitHub Pages index
-        shell: powershell
+        shell: cmd
         run: |
-          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Write-Host 'PowerShell works!'"
           Write-Host "=============================================="
           Write-Host "CREATING GITHUB PAGES INDEX"
           Write-Host "=============================================="
