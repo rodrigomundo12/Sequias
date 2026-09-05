@@ -172,6 +172,11 @@ jobs:
           echo.
           echo All five web products found.
 
+
+          # ========================================================
+          # COPY WEB PRODUCTS
+          # ========================================================
+
           echo.
           echo ==============================================
           echo COPYING WEB VECTOR PRODUCTS
@@ -217,7 +222,7 @@ jobs:
 
 
           # ========================================================
-          # CREATE INTERACTIVE LEAFLET MAP
+          # CREATE INTERACTIVE MAP
           # ========================================================
 
           echo.
@@ -225,503 +230,7 @@ jobs:
           echo CREATING INTERACTIVE LEAFLET MAP
           echo ==============================================
 
-          "%PYTHON_EXE%" -c "from pathlib import Path; p=Path(r'docs\vectors\index.html'); p.write_text('''<!DOCTYPE html>
-          <html lang="en">
-          <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-          <title>El Salvador Drought Monitoring Map</title>
-
-          <link
-            rel="stylesheet"
-            href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-          />
-
-          <style>
-
-          html, body {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-          }
-
-          #map {
-            width: 100%;
-            height: 100vh;
-          }
-
-          .title-box {
-            background: white;
-            padding: 12px 16px;
-            border-radius: 6px;
-            box-shadow: 0 1px 5px rgba(0,0,0,0.3);
-          }
-
-          .title-box h1 {
-            margin: 0;
-            font-size: 18px;
-          }
-
-          .title-box p {
-            margin: 5px 0 0 0;
-            font-size: 12px;
-          }
-
-          .legend {
-            background: white;
-            padding: 10px 12px;
-            line-height: 20px;
-            border-radius: 6px;
-            box-shadow: 0 1px 5px rgba(0,0,0,0.3);
-          }
-
-          .legend h4 {
-            margin: 0 0 6px 0;
-          }
-
-          .legend-item {
-            display: flex;
-            align-items: center;
-          }
-
-          .legend-color {
-            width: 18px;
-            height: 18px;
-            margin-right: 7px;
-            border: 1px solid #777;
-          }
-
-          .info-box {
-            background: white;
-            padding: 10px 12px;
-            border-radius: 6px;
-            box-shadow: 0 1px 5px rgba(0,0,0,0.3);
-            min-width: 180px;
-          }
-
-          </style>
-
-          </head>
-
-          <body>
-
-          <div id="map"></div>
-
-          <script
-            src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
-          </script>
-
-          <script>
-
-          // ========================================================
-          // MAP INITIALIZATION
-          // ========================================================
-
-          const map = L.map("map", {
-            center: [13.7942, -88.8965],
-            zoom: 8
-          });
-
-
-          // ========================================================
-          // BASE MAP
-          // ========================================================
-
-          const osm = L.tileLayer(
-            "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-            {
-              maxZoom: 19,
-              attribution: "&copy; OpenStreetMap contributors"
-            }
-          ).addTo(map);
-
-
-          // ========================================================
-          // CLASS COLORS
-          // ========================================================
-
-          const classColors = {
-            1: "#8B0000",
-            2: "#FF8C00",
-            3: "#FFFF66",
-            4: "#90EE90",
-            5: "#006400"
-          };
-
-
-          const classNames = {
-            1: "Very Low",
-            2: "Low",
-            3: "Normal",
-            4: "High",
-            5: "Very High"
-          };
-
-
-          // ========================================================
-          // STYLE FUNCTION
-          // ========================================================
-
-          function polygonStyle(feature) {
-
-            const classId =
-              feature.properties &&
-              feature.properties.class_id;
-
-            return {
-              color: "#444",
-              weight: 0.4,
-              opacity: 0.8,
-              fillColor: classColors[classId] || "#999999",
-              fillOpacity: 0.65
-            };
-          }
-
-
-          // ========================================================
-          // POPUP
-          // ========================================================
-
-          function onEachFeature(feature, layer) {
-
-            const p = feature.properties || {};
-
-            const className =
-              p.class_name ||
-              classNames[p.class_id] ||
-              "Unknown";
-
-            const area =
-              p.area_m2 !== undefined &&
-              p.area_m2 !== null
-                ? Number(p.area_m2).toLocaleString(
-                    undefined,
-                    {
-                      maximumFractionDigits: 0
-                    }
-                  )
-                : "N/A";
-
-            const index =
-              p.index || "N/A";
-
-            const minValue =
-              p.min_value !== null &&
-              p.min_value !== undefined
-                ? Number(p.min_value).toFixed(4)
-                : "N/A";
-
-            const maxValue =
-              p.max_value !== null &&
-              p.max_value !== undefined
-                ? Number(p.max_value).toFixed(4)
-                : "N/A";
-
-            layer.bindPopup(
-              "<strong>Drought Monitoring</strong><br><br>" +
-              "<b>Index:</b> " + index + "<br>" +
-              "<b>Class:</b> " + className + "<br>" +
-              "<b>Class ID:</b> " + (p.class_id || "N/A") + "<br>" +
-              "<b>Area:</b> " + area + " m²<br>" +
-              "<b>Minimum:</b> " + minValue + "<br>" +
-              "<b>Maximum:</b> " + maxValue
-            );
-          }
-
-
-          // ========================================================
-          // LOAD GEOJSON LAYER
-          // ========================================================
-
-          async function loadGeoJSON(
-            filename,
-            layerName
-          ) {
-
-            try {
-
-              const response =
-                await fetch(filename);
-
-              if (!response.ok) {
-                throw new Error(
-                  "HTTP " + response.status
-                );
-              }
-
-              const data =
-                await response.json();
-
-              const layer =
-                L.geoJSON(
-                  data,
-                  {
-                    style: polygonStyle,
-                    onEachFeature: onEachFeature
-                  }
-                );
-
-              overlayLayers[layerName] = layer;
-
-              layer.addTo(map);
-
-              loadedLayers++;
-
-              if (loadedLayers === totalLayers) {
-                fitToAllLayers();
-              }
-
-              updateInfo();
-
-            } catch (error) {
-
-              console.error(
-                "Error loading " +
-                filename +
-                ":",
-                error
-              );
-
-              const errorBox =
-                document.getElementById(
-                  "map-status"
-                );
-
-              errorBox.innerHTML +=
-                "<br>Could not load " +
-                filename;
-
-            }
-          }
-
-
-          // ========================================================
-          // LAYER COLLECTION
-          // ========================================================
-
-          const overlayLayers = {};
-
-          const totalLayers = 5;
-
-          let loadedLayers = 0;
-
-
-          // ========================================================
-          // LOAD ALL FIVE INDICES
-          // ========================================================
-
-          loadGeoJSON(
-            "NDDI.geojson",
-            "NDDI"
-          );
-
-          loadGeoJSON(
-            "MNDWI.geojson",
-            "MNDWI"
-          );
-
-          loadGeoJSON(
-            "NMDI.geojson",
-            "NMDI"
-          );
-
-          loadGeoJSON(
-            "NDII.geojson",
-            "NDII"
-          );
-
-          loadGeoJSON(
-            "NDVI.geojson",
-            "NDVI"
-          );
-
-
-          // ========================================================
-          // LAYER CONTROL
-          // ========================================================
-
-          const baseLayers = {
-            "OpenStreetMap": osm
-          };
-
-          L.control.layers(
-            baseLayers,
-            overlayLayers,
-            {
-              collapsed: false
-            }
-          ).addTo(map);
-
-
-          // ========================================================
-          // FIT MAP TO DATA
-          // ========================================================
-
-          function fitToAllLayers() {
-
-            let bounds = null;
-
-            Object.values(
-              overlayLayers
-            ).forEach(function(layer) {
-
-              if (
-                layer &&
-                layer.getBounds &&
-                layer.getBounds().isValid()
-              ) {
-
-                if (bounds === null) {
-                  bounds =
-                    layer.getBounds();
-                } else {
-                  bounds.extend(
-                    layer.getBounds()
-                  );
-                }
-              }
-            });
-
-            if (
-              bounds !== null &&
-              bounds.isValid()
-            ) {
-
-              map.fitBounds(
-                bounds,
-                {
-                  padding: [20, 20]
-                }
-              );
-            }
-          }
-
-
-          // ========================================================
-          // TITLE
-          // ========================================================
-
-          const titleControl =
-            L.control({
-              position: "topleft"
-            });
-
-          titleControl.onAdd =
-            function() {
-
-              const div =
-                L.DomUtil.create(
-                  "div",
-                  "title-box"
-                );
-
-              div.innerHTML =
-                "<h1>El Salvador Drought Monitoring</h1>" +
-                "<p>Sentinel-2 L2A drought indices</p>";
-
-              return div;
-            };
-
-          titleControl.addTo(map);
-
-
-          // ========================================================
-          // LEGEND
-          // ========================================================
-
-          const legend =
-            L.control({
-              position: "bottomright"
-            });
-
-          legend.onAdd =
-            function() {
-
-              const div =
-                L.DomUtil.create(
-                  "div",
-                  "legend"
-                );
-
-              div.innerHTML =
-                "<h4>Drought Classification</h4>";
-
-              for (
-                let i = 1;
-                i <= 5;
-                i++
-              ) {
-
-                div.innerHTML +=
-                  "<div class='legend-item'>" +
-                  "<div class='legend-color' " +
-                  "style='background:" +
-                  classColors[i] +
-                  "'></div>" +
-                  classNames[i] +
-                  "</div>";
-              }
-
-              return div;
-            };
-
-          legend.addTo(map);
-
-
-          // ========================================================
-          // STATUS / INFO
-          // ========================================================
-
-          const info =
-            L.control({
-              position: "bottomleft"
-            });
-
-          info.onAdd =
-            function() {
-
-              const div =
-                L.DomUtil.create(
-                  "div",
-                  "info-box"
-                );
-
-              div.id = "map-status";
-
-              div.innerHTML =
-                "Loading drought products...";
-
-              return div;
-            };
-
-          info.addTo(map);
-
-
-          function updateInfo() {
-
-            const box =
-              document.getElementById(
-                "map-status"
-              );
-
-            if (!box) {
-              return;
-            }
-
-            box.innerHTML =
-              "Products loaded: " +
-              loadedLayers +
-              " / " +
-              totalLayers;
-          }
-
-          </script>
-
-          </body>
-          </html>
-          ''', encoding='utf-8')"
+          "%PYTHON_EXE%" -c "import base64,gzip; from pathlib import Path; s='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'; Path(r'docs\vectors\index.html').write_bytes(gzip.decompress(base64.b64decode(s)))"
 
           if errorlevel 1 (
               echo.
@@ -729,20 +238,42 @@ jobs:
               exit /b 1
           )
 
+          if not exist "docs\vectors\index.html" (
+              echo.
+              echo ERROR: docs\vectors\index.html was not created.
+              exit /b 1
+          )
+
           echo.
-          echo Interactive map created successfully.
+          echo Interactive Leaflet map created successfully.
 
 
           # ========================================================
-          # SHOW WEB FILES
+          # VERIFY WEB FILES
           # ========================================================
 
           echo.
           echo ==============================================
-          echo WEB VECTOR FILES
+          echo VERIFYING WEB FILES
           echo ==============================================
 
           dir "docs\vectors"
+
+          echo.
+          echo Checking interactive map file...
+
+          "%PYTHON_EXE%" -c "from pathlib import Path; p=Path(r'docs\vectors\index.html'); print('Map HTML size:',p.stat().st_size,'bytes'); t=p.read_text(encoding='utf-8'); print('Leaflet detected:', 'leaflet@1.9.4' in t); print('NDDI layer detected:', 'NDDI.geojson' in t); print('MNDWI layer detected:', 'MNDWI.geojson' in t); print('NMDI layer detected:', 'NMDI.geojson' in t); print('NDII layer detected:', 'NDII.geojson' in t); print('NDVI layer detected:', 'NDVI.geojson' in t)"
+
+          if errorlevel 1 (
+              echo.
+              echo ERROR: Map verification failed.
+              exit /b 1
+          )
+
+
+          # ========================================================
+          # COPY METADATA
+          # ========================================================
 
           echo.
           echo ==============================================
@@ -811,8 +342,14 @@ jobs:
             echo ^</html^>
           ) > "docs\index.html"
 
+          if errorlevel 1 (
+              echo.
+              echo ERROR: Could not create GitHub Pages landing page.
+              exit /b 1
+          )
+
           echo.
-          echo GitHub Pages index created.
+          echo GitHub Pages landing page created.
 
 
       # ============================================================
@@ -863,14 +400,12 @@ jobs:
           echo.
           echo Creating commit...
 
-          git commit -m "Update interactive drought monitoring map"
+          git commit -m "Add interactive drought monitoring map"
 
           if errorlevel 1 (
-
               echo.
               echo ERROR: Git commit failed.
               exit /b 1
-
           )
 
           echo.
@@ -879,11 +414,9 @@ jobs:
           git push origin main
 
           if errorlevel 1 (
-
               echo.
               echo ERROR: Git push failed.
               exit /b 1
-
           )
 
           echo.
