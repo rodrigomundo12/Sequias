@@ -4002,39 +4002,12 @@ def polygonize_cleaned_raster(
     # Simplify in meters
     # ------------------------------------------------------------
 
-    if SIMPLIFY_TOLERANCE_M > 0:
-
-        print(
-            f"Simplifying by "
-            f"{SIMPLIFY_TOLERANCE_M} m..."
+    dissolved["geometry"] = (
+        dissolved.geometry.simplify(
+            SIMPLIFY_TOLERANCE_M,
+            preserve_topology=True
         )
-        
-        # ------------------------------------------------------------
-        # Smooth raster-derived geometry
-        # ------------------------------------------------------------
-
-        if SIMPLIFY_TOLERANCE_M > 0:
-
-            print(
-                f"Smoothing polygons by "
-                f"{SIMPLIFY_TOLERANCE_M} m..."
-            )
-
-            dissolved["geometry"] = (
-                dissolved.geometry
-                .buffer(
-                    SIMPLIFY_TOLERANCE_M,
-                    resolution=8
-                )
-                .buffer(
-                    -SIMPLIFY_TOLERANCE_M,
-                    resolution=8
-                )
-                .simplify(
-                    SIMPLIFY_TOLERANCE_M,
-                    preserve_topology=True
-                )
-        )
+    )
 
     # ------------------------------------------------------------
     # Class ranges
