@@ -3849,15 +3849,15 @@ def cleanup_classified_raster(
 
 
     print()
-    print(
-        f"Total pixels removed: "
-        f"{total_removed:,}"
-    )
+    #print(
+    #    f"Total pixels removed: "
+    #    f"{total_removed:,}"
+    #)
 
-    print(
-        f"Total holes filled: "
-        f"{total_holes_filled:,}"
-    )
+    #print(
+    #    f"Total holes filled: "
+    #    f"{total_holes_filled:,}"
+    #)
 
     print(
         f"Cleaned raster saved: "
