@@ -196,13 +196,21 @@
 
     function styleFeature(feature) {
 
-        const properties = feature.properties || {};
+    const properties = feature.properties || {};
 
-        const classValue = Number(
-            properties.class
-        );
+    // Support both GeoJSON schemas:
+    //
+    // NDDI:
+    //   class_id
+    //
+    // Other indices:
+    //   class
+    //
+    const classValue = Number(
+        properties.class ?? properties.class_id
+    );
 
-        return {
+    return {
 
             color: "#444",
 
@@ -226,18 +234,31 @@
 
     function onEachFeature(feature, layer) {
 
-        const properties =
-            feature.properties || {};
+    const properties =
+        feature.properties || {};
 
 
-        const classValue =
-            Number(properties.class);
+    // Support both GeoJSON schemas:
+    //
+    // NDDI:
+    //   class_id
+    //   class_name
+    //
+    // Other indices:
+    //   class
+    //   label
+    //
+    const classValue = Number(
+        properties.class ??
+        properties.class_id
+    );
 
 
-        const label =
-            properties.label ||
-            classNames[classValue] ||
-            "Unknown";
+    const label =
+        properties.label ??
+        properties.class_name ??
+        classNames[classValue] ??
+        "Unknown";
 
 
         const popupHTML =
@@ -473,22 +494,15 @@
                             indices.forEach(
                                 function(otherIndex) {
 
-                                    if (
-                                        otherIndex !==
-                                        index
-                                    ) {
+                                    if (otherIndex !== index) {
 
                                         const otherLayer =
-                                            overlayLayers[
-                                                otherIndex
-                                            ];
+                                            overlayLayers[otherIndex];
 
 
                                         if (
                                             otherLayer &&
-                                            map.hasLayer(
-                                                otherLayer
-                                            )
+                                            map.hasLayer(otherLayer)
                                         ) {
 
                                             map.removeLayer(
@@ -505,21 +519,15 @@
 
                             // Show selected index.
                             const selectedLayer =
-                                overlayLayers[
-                                    index
-                                ];
+                                overlayLayers[index];
 
 
                             if (
                                 selectedLayer &&
-                                !map.hasLayer(
-                                    selectedLayer
-                                )
+                                !map.hasLayer(selectedLayer)
                             ) {
 
-                                selectedLayer.addTo(
-                                    map
-                                );
+                                selectedLayer.addTo(map);
 
                             }
 
