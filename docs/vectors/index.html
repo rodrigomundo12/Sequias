@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>El Salvador Drought Monitoring Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+html,body{height:100%;margin:0;padding:0;font-family:Arial,sans-serif}
+#map{width:100%;height:100vh}
+.title-box,.legend,.info-box{background:white;padding:10px 14px;border-radius:6px;box-shadow:0 1px 5px rgba(0,0,0,.3)}
+.title-box h1{margin:0;font-size:18px}.title-box p{margin:5px 0 0;font-size:12px}
+.legend{line-height:20px}.legend h4{margin:0 0 6px}.legend-item{display:flex;align-items:center}
+.legend-color{width:18px;height:18px;margin-right:7px;border:1px solid #777}.info-box{min-width:170px}
+</style></head>
+<body><div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map=L.map("map",{center:[13.7942,-88.8965],zoom:8});
+const osm=L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap contributors"}).addTo(map);
+const classColors={1:"#8B0000",2:"#FF8C00",3:"#FFFF66",4:"#90EE90",5:"#006400"};
+const classNames={1:"Very Low",2:"Low",3:"Normal",4:"High",5:"Very High"};
+const overlayLayers={},files=["NDDI","MNDWI","NMDI","NDII","NDVI"];let loaded=0;
+function style(f){const id=f.properties?.class_id;return{color:"#444",weight:.4,opacity:.8,fillColor:classColors[id]||"#999",fillOpacity:.65}}
+function popup(f,l){const p=f.properties||{},cls=p.class_name||classNames[p.class_id]||"Unknown",area=p.area_m2!=null?Number(p.area_m2).toLocaleString(undefined,{maximumFractionDigits:0})+" m²":"N/A",min=p.min_value!=null?Number(p.min_value).toFixed(4):"N/A",max=p.max_value!=null?Number(p.max_value).toFixed(4):"N/A";l.bindPopup("<strong>El Salvador Drought Monitoring</strong><br><br><b>Index:</b> "+(p.index||"N/A")+"<br><b>Class:</b> "+cls+"<br><b>Area:</b> "+area+"<br><b>Minimum:</b> "+min+"<br><b>Maximum:</b> "+max)}
+function fitAll(){let b=null;Object.values(overlayLayers).forEach(l=>{if(l.getBounds&&l.getBounds().isValid())b=b?b.extend(l.getBounds()):l.getBounds()});if(b&&b.isValid())map.fitBounds(b,{padding:[20,20]})}
+async function loadLayer(name){try{const r=await fetch(name+".geojson");if(!r.ok)throw new Error("HTTP "+r.status);const data=await r.json(),layer=L.geoJSON(data,{style:style,onEachFeature:popup});overlayLayers[name]=layer;layer.addTo(map);loaded++;document.getElementById("status").textContent="Products loaded: "+loaded+" / "+files.length;if(loaded===files.length)fitAll()}catch(e){console.error(name,e);document.getElementById("status").innerHTML+="<br>Could not load "+name+".geojson"}}
+files.forEach(loadLayer);
+L.control.layers({"OpenStreetMap":osm},overlayLayers,{collapsed:false}).addTo(map);
+const title=L.control({position:"topleft"});title.onAdd=()=>{const d=L.DomUtil.create("div","title-box");d.innerHTML="<h1>El Salvador Drought Monitoring</h1><p>Sentinel-2 L2A drought indices</p>";return d};title.addTo(map);
+const legend=L.control({position:"bottomright"});legend.onAdd=()=>{const d=L.DomUtil.create("div","legend");d.innerHTML="<h4>Drought Classification</h4>";for(let i=1;i<=5;i++)d.innerHTML+="<div class='legend-item'><div class='legend-color' style='background:"+classColors[i]+"'></div>"+classNames[i]+"</div>";return d};legend.addTo(map);
+const info=L.control({position:"bottomleft"});info.onAdd=()=>{const d=L.DomUtil.create("div","info-box");d.id="status";d.textContent="Loading drought products...";return d};info.addTo(map);
+</script></body></html>
