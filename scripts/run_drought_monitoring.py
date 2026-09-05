@@ -3151,11 +3151,11 @@ CLASS_NAMES = {
 # ================================================================
 
 NDDI_CLASS_NAMES = {
-    1: "Húmedo",
-    2: "Húmedo / vegetación saludable",
-    3: "No sequía",
-    4: "Sequía moderada",
-    5: "Sequía severa"
+    1: "Humedo",
+    2: "Humedo / vegetacion saludable",
+    3: "Normal",
+    4: "Sequia moderada",
+    5: "Sequia severa"
 }
 
 # ================================================================
