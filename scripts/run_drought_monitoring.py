@@ -1071,7 +1071,7 @@ QUARTERS = {
 
 }
 
-
+print(">>> CHECKPOINT 4: Python script finished section 5", flush=True)
 # ================================================================
 # 6. DETERMINE LATEST COMPLETE QUARTER
 # ================================================================
@@ -1172,7 +1172,7 @@ print(
     ]
 )
 
-
+print(">>> CHECKPOINT 5: Python script finished section 6", flush=True)
 # ================================================================
 # 7. SENTINEL-2 PROCESSING PARAMETERS
 # ================================================================
@@ -1227,6 +1227,7 @@ print(
     f"Generated {len(tiles)} Sentinel Hub tiles"
 )
 
+print(">>> CHECKPOINT 6: Python script finished section 8", flush=True)
 
 # ================================================================
 # 9. INDEX DEFINITIONS
@@ -1544,7 +1545,7 @@ def get_month_dates(
 
     return start, end
 
-
+print(">>> CHECKPOINT 7: Python script finished section 11", flush=True)
 # ================================================================
 # 12. SENTINEL HUB TILE REQUEST
 # ================================================================
@@ -1611,6 +1612,7 @@ def request_tile(tile, start, end):
         "All Sentinel Hub credentials failed."
     )
 
+print(">>> CHECKPOINT 8: Python script finished section 12", flush=True)
 # ================================================================
 # 13. DOWNLOAD MONTHLY DATA / CREATE QUARTERLY TILES
 # ================================================================
@@ -1891,7 +1893,7 @@ for hydro_year in YEARS:
 
         gc.collect()
 
-
+print(">>> CHECKPOINT 9: Python script finished section 13", flush=True)
 # ================================================================
 # 14. MERGE QUARTERLY TILES
 # ================================================================
@@ -2521,6 +2523,7 @@ print()
 print("=" * 80)
 print("QUARTERLY COMPOSITE CREATION COMPLETE")
 print("=" * 80)
+print(">>> CHECKPOINT 10: Python script finished section 14", flush=True)
 
 # ================================================================
 # 15. CROP QUARTERLY COMPOSITES TO EL SALVADOR
@@ -2950,6 +2953,7 @@ def cropped_composite_path(hydro_year, quarter_name):
         f"composite_{hydro_year}_{quarter_name}_cropped.tif"
     )
 
+print(">>> CHECKPOINT 11: Python script finished section 15", flush=True)
 
 # ================================================================
 # 16. FIND AVAILABLE COMPOSITES
@@ -3006,7 +3010,7 @@ if len(raster_paths) < 2:
 
     )
 
-
+print(">>> CHECKPOINT 12: Python script finished section 16", flush=True)
 # ================================================================
 # 17. LEAVE-ONE-YEAR-OUT ANOMALIES
 # ================================================================
@@ -3399,7 +3403,7 @@ print(
     "Anomaly calculation finished"
 )
 
-
+print(">>> CHECKPOINT 13: Python script finished section 17", flush=True)
 # ================================================================
 # 18. VERIFY ANOMALIES
 # ================================================================
@@ -3522,7 +3526,7 @@ for hydro_year in available_years:
 
             )
 
-
+print(">>> CHECKPOINT 13: Python script finished section 18", flush=True)
 # ================================================================
 # 19. 5-CLASS RASTER CLASSIFICATION + CLEANUP + POLYGONIZATION
 # ================================================================
@@ -3911,10 +3915,10 @@ def cleanup_classified_raster(
     print(
         output_raster
     )
-
+print(">>> CHECKPOINT 14: Python script finished section 19", flush=True)
 
 # ================================================================
-# POLYGONIZE CLEANED RASTER
+# 20. POLYGONIZE CLEANED RASTER
 # ================================================================
 
 def polygonize_cleaned_raster(
