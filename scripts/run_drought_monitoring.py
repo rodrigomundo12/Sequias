@@ -1,3 +1,4 @@
+print(">>> CHECKPOINT 0: Python script started", flush=True)
 # -*- coding: utf-8 -*-
 
 """
