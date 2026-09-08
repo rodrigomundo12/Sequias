@@ -1192,35 +1192,19 @@ tile_size_deg = (
 # 8. SPLIT EL SALVADOR INTO TILES
 # ================================================================
 
+print(">>> CHECKPOINT 8: Creating single Sentinel Hub tile", flush=True)
+
 splitter = BBoxSplitter(
-
     [aoi],
-
     CRS.WGS84,
-
-    split_shape=(
-
-        math.ceil(
-            (lat_max - lat_min)
-            /
-            tile_size_deg
-        ),
-
-        math.ceil(
-            (lon_max - lon_min)
-            /
-            tile_size_deg
-        )
-
-    )
-
+    split_shape=(1, 1)
 )
 
+tiles = splitter.get_bbox_list()
 
-tiles = (
-    splitter.get_bbox_list()
-)
+print(f"Generated {len(tiles)} Sentinel Hub tile", flush=True)
 
+print(">>> CHECKPOINT 8: Single tile created", flush=True)
 
 print()
 print(
