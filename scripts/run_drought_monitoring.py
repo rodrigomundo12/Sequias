@@ -1192,7 +1192,13 @@ tile_size_deg = (
 # 8. SPLIT EL SALVADOR INTO TILES
 # ================================================================
 
-print(">>> CHECKPOINT 8: Creating single Sentinel Hub tile", flush=True)
+print(">>> CHECKPOINT 8: Creating Sentinel Hub tiles", flush=True)
+
+# Make absolutely sure AOI is in geographic coordinates
+aoi_gdf = aoi_gdf.to_crs("EPSG:4326")
+aoi = aoi_gdf.geometry.unary_union
+
+print("AOI bounds after conversion to WGS84:", aoi.bounds, flush=True)
 
 splitter = BBoxSplitter(
     [aoi],
@@ -1202,16 +1208,20 @@ splitter = BBoxSplitter(
 
 tiles = splitter.get_bbox_list()
 
-print(f"Generated {len(tiles)} Sentinel Hub tile", flush=True)
+print(f"Generated {len(tiles)} Sentinel Hub tiles", flush=True)
 
-print(">>> CHECKPOINT 8: Single tile created", flush=True)
+# Diagnostic: first three tiles
+for i, tile in enumerate(tiles[:3]):
+    print(
+        f"Tile {i + 1}: "
+        f"min_x={tile.min_x:.6f}, "
+        f"max_x={tile.max_x:.6f}, "
+        f"min_y={tile.min_y:.6f}, "
+        f"max_y={tile.max_y:.6f}",
+        flush=True
+    )
 
-print()
-print(
-    f"Generated {len(tiles)} Sentinel Hub tiles"
-)
-
-print(">>> CHECKPOINT 6: Python script finished section 8", flush=True)
+print(">>> CHECKPOINT 8: Tiles created successfully", flush=True)
 
 # ================================================================
 # 9. INDEX DEFINITIONS
