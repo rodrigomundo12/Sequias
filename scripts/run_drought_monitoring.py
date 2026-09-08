@@ -1530,6 +1530,8 @@ def get_month_dates(
     return start, end
 
 print(">>> CHECKPOINT 7: Python script finished section 11", flush=True)
+
+from sentinelhub import bbox_to_dimensions
 # ================================================================
 # 12. SENTINEL HUB TILE REQUEST
 # ================================================================
@@ -1553,24 +1555,82 @@ def request_tile(tile, start, end):
 
             config = get_config(current_cred)
 
+            # ----------------------------------------------------
+            # CALCULATE REQUEST SIZE FROM BBOX
+            # ----------------------------------------------------
+
+            width, height = bbox_to_dimensions(
+                tile,
+                resolution=RESOLUTION
+            )
+            print(
+                f"TILE BBOX: "
+                f"{tile}",
+                flush=True
+            )
+
+            print(
+                f"TILE DIMENSIONS: "
+                f"{width} x {height}",
+                flush=True
+            )
+            
+            print(
+                f"Tile request dimensions: "
+                f"{width} x {height}",
+                flush=True
+            )
+
+            # ----------------------------------------------------
+            # SAFETY CHECK
+            # ----------------------------------------------------
+
+            if width > 2500 or height > 2500:
+
+                raise ValueError(
+                    f"Tile dimensions too large: "
+                    f"{width} x {height}. "
+                    f"Maximum allowed is 2500 x 2500."
+                )
+
             request = SentinelHubRequest(
+
                 evalscript=evalscript,
+
                 input_data=[
+
                     SentinelHubRequest.input_data(
-                        data_collection=DataCollection.SENTINEL2_L2A,
-                        time_interval=(start, end)
+
+                        data_collection=
+                        DataCollection.SENTINEL2_L2A,
+
+                        time_interval=(
+                            start,
+                            end
+                        )
+
                     )
+
                 ],
+
                 responses=[
+
                     SentinelHubRequest.output_response(
                         "bands",
                         MimeType.TIFF
                     )
+
                 ],
+
                 bbox=tile,
-                size=(500, 500),
-                #size=(max(1, round((tile.max_x - tile.min_x)* 111320/ RESOLUTION)),  max(1, round((tile.max_y - tile.min_y)* 111320/ RESOLUTION))),
+
+                size=(
+                    width,
+                    height
+                ),
+
                 config=config
+
             )
 
             data = request.get_data()[0]
@@ -1583,6 +1643,7 @@ def request_tile(tile, start, end):
             print(
                 f"Credential {current_cred + 1} failed."
             )
+
             print(
                 str(e)[:500]
             )
