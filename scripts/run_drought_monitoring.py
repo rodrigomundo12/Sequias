@@ -957,9 +957,33 @@ aoi_gdf = gpd.read_file(
 )
 
 if aoi_gdf.crs is None:
-    print('Boundary CRS is not set. Setting to EPSG:4326 (WGS84).')
-    aoi_gdf = aoi_gdf.set_crs(epsg=4326, allow_override=True)
 
+    print("Boundary CRS is not set.")
+    print("Assigning the original Lambert Conformal Conic CRS.")
+
+    lcc_crs = (
+        "+proj=lcc "
+        "+lat_0=13.78429934 "
+        "+lon_0=-88.99998297 "
+        "+lat_1=14.25096601 "
+        "+lat_2=13.31763267 "
+        "+x_0=500000 "
+        "+y_0=295809.184 "
+        "+k_0=0.99996704 "
+        "+ellps=GRS80 "
+        "+units=m "
+        "+no_defs "
+        "+type=crs"
+    )
+
+    aoi_gdf = aoi_gdf.set_crs(lcc_crs)
+
+print(f"Boundary original CRS: {aoi_gdf.crs}")
+
+# Convert AOI to WGS84 for Sentinel Hub
+aoi_gdf = aoi_gdf.to_crs("EPSG:4326")
+
+print(f"Boundary CRS for Sentinel Hub: {aoi_gdf.crs}")
 
 if aoi_gdf.empty:
 
@@ -1196,7 +1220,7 @@ print(">>> CHECKPOINT 8: Creating Sentinel Hub tiles", flush=True)
 
 # Make absolutely sure AOI is in geographic coordinates
 aoi_gdf = aoi_gdf.to_crs("EPSG:4326")
-aoi = aoi_gdf.geometry.unary_union
+aoi = aoi_gdf.geometry.union_all()
 
 print("AOI bounds after conversion to WGS84:", aoi.bounds, flush=True)
 
