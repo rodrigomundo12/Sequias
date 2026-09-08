@@ -203,7 +203,7 @@ for directory in [
         exist_ok=True
     )
 
-
+print(">>> CHECKPOINT 1: Python script continues", flush=True)
 # ================================================================
 # 3. SENTINEL HUB CREDENTIALS
 # ================================================================
@@ -257,7 +257,7 @@ def get_config(
 
     return config
 
-
+print(">>> CHECKPOINT 2: Python script continues", flush=True)
 # ================================================================
 # 4. AOI
 # ================================================================
@@ -1037,7 +1037,7 @@ aoi = BBox(
     ),
     crs=CRS.WGS84
 )
-
+print(">>> CHECKPOINT 3: Python script finished section 4", flush=True)
 
 # ================================================================
 # 5. QUARTERS
