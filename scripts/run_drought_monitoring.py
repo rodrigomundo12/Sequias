@@ -1568,7 +1568,8 @@ def request_tile(tile, start, end):
                     )
                 ],
                 bbox=tile,
-                size=(max(1, round((tile.max_x - tile.min_x)* 111320/ RESOLUTION)),  max(1, round((tile.max_y - tile.min_y)* 111320/ RESOLUTION))),
+                size=(500, 500),
+                #size=(max(1, round((tile.max_x - tile.min_x)* 111320/ RESOLUTION)),  max(1, round((tile.max_y - tile.min_y)* 111320/ RESOLUTION))),
                 config=config
             )
 
