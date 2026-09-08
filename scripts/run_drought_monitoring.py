@@ -94,6 +94,23 @@ from sentinelhub import (
     BBoxSplitter
 )
 
+# ================================================================
+# RUNTIME CHECKPOINTS
+# ================================================================
+
+import time
+
+SCRIPT_START_TIME = time.time()
+
+
+def checkpoint(label):
+    elapsed = time.time() - SCRIPT_START_TIME
+    print()
+    print("=" * 80)
+    print(f"CHECKPOINT: {label}")
+    print(f"Elapsed time: {elapsed / 60:.2f} minutes")
+    print("=" * 80)
+
 
 # ================================================================
 # 2. MAIN CONFIGURATION
@@ -982,6 +999,7 @@ aoi_gdf = gpd.GeoDataFrame(
     crs="EPSG:4326"
 )
 
+checkpoint("AOI boundary loaded and prepared")
 
 # ------------------------------------------------------------
 # Get national bounds
@@ -1596,6 +1614,8 @@ def request_tile(tile, start, end):
 # 13. DOWNLOAD MONTHLY DATA / CREATE QUARTERLY TILES
 # ================================================================
 
+checkpoint("ENTERING SECTION 13 - SENTINEL-2 DOWNLOAD / TILE COMPOSITES")
+
 print()
 print("=" * 80)
 print(
@@ -1606,6 +1626,9 @@ print("=" * 80)
 
 for hydro_year in YEARS:
 
+    checkpoint(
+        f"STARTING HYDROLOGICAL YEAR {hydro_year}"
+    )
 
     # ------------------------------------------------------------
     # IMPORTANT CACHE CHECK
@@ -1681,7 +1704,10 @@ for hydro_year in YEARS:
         )
 
     ):
-
+        checkpoint(
+            f"STARTING TILE {t_idx + 1}/{len(tiles)} "
+            f"| HYDRO YEAR {hydro_year}"
+        )
 
         monthly_stack = []
 
