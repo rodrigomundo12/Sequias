@@ -213,7 +213,7 @@ print(">>> CHECKPOINT 1: Python script continues", flush=True)
 # Example:
 #
 CREDENTIALS = [
-    ("6fad6783-033a-4f48-ad65-25b7c2d530f6", "GYI9ceecoGvy5YDVEHOb1m3cVLzT1Ieg"),
+    ("ae3988a8-723c-4b45-a17a-98a8ee6975b1", "phYO8EeyhRelXcrMMcnvg5iN22LoiQkD"),
     ("4bf7191e-bd75-47be-8c33-6068cd706be0", "hgx4XtR66imiKwWIA493MglvsYi83b5i"),
     ("f618b4e5-7fa2-4b61-86a1-5ecc4b469ffd", "ekjzotsnAFZesT7WtN06tp1aBt9pK3fo"),
     ("4b6356f4-cddc-4c3b-a92a-06689245c899", "YUK7xNbPyAq9g4tJ5GYUtsf7gQp7qgez"),
