@@ -938,6 +938,10 @@ aoi_gdf = gpd.read_file(
     BOUNDARY_PATH
 )
 
+if aoi_gdf.crs is None:
+    print('Boundary CRS is not set. Setting to EPSG:4326 (WGS84).')
+    aoi_gdf = aoi_gdf.set_crs(epsg=4326, allow_override=True)
+
 
 if aoi_gdf.empty:
 
