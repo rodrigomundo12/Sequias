@@ -1197,7 +1197,7 @@ print(">>> CHECKPOINT 8: Creating single Sentinel Hub tile", flush=True)
 splitter = BBoxSplitter(
     [aoi],
     CRS.WGS84,
-    split_shape=(7, 7)
+    split_shape=(6, 10)
 )
 
 tiles = splitter.get_bbox_list()
