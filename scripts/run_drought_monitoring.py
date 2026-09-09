@@ -2523,7 +2523,23 @@ def merge_tiles_manual(
         # OUTPUT PROFILE
         # ============================================================
 
-        profile = first.profile.copy()
+        # ============================================================
+        # OUTPUT PROFILE
+        # ============================================================
+
+        profile = {
+            "driver": "GTiff",
+            "height": mosaic_height,
+            "width": mosaic_width,
+            "count": count,
+            "dtype": "float32",
+            "crs": crs,
+            "transform": mosaic_transform,
+            "nodata": np.nan,
+            "compress": "lzw",
+            "tiled": False,
+            "BIGTIFF": "IF_SAFER"
+        }
 
         profile.update(
             driver="GTiff",
