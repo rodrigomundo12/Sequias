@@ -2427,7 +2427,7 @@ for hydro_year in YEARS:
                 )
                 if (
                     filename.startswith(
-                        f"{hydro_year}_{quarter_name}_"
+                        f"{quarter_name}_{hydro_year}_"
                     )
                     and filename.endswith(".tif")
                 )
