@@ -2390,6 +2390,120 @@ def merge_tiles_manual(
         gc.collect()
 
 # ================================================================
+# EXECUTE QUARTERLY TILE MERGING
+# ================================================================
+
+print()
+print("=" * 80)
+print("EXECUTING QUARTERLY TILE MERGING")
+print("=" * 80)
+
+for hydro_year in YEARS:
+
+    print()
+    print("=" * 80)
+    print(f"HYDROLOGICAL YEAR: {hydro_year}")
+    print("=" * 80)
+
+    for quarter_name in QUARTERS:
+
+        print()
+        print(
+            f"Processing {hydro_year} {quarter_name}"
+        )
+
+        # --------------------------------------------------------
+        # Find downloaded tiles for this year and quarter
+        # --------------------------------------------------------
+
+        tile_files = sorted(
+            [
+                os.path.join(
+                    QUARTERLY_TILE_DIR,
+                    filename
+                )
+                for filename in os.listdir(
+                    QUARTERLY_TILE_DIR
+                )
+                if (
+                    filename.startswith(
+                        f"{hydro_year}_{quarter_name}_"
+                    )
+                    and filename.endswith(".tif")
+                )
+            ]
+        )
+
+        print(
+            f"TILES FOUND: {len(tile_files)}"
+        )
+
+        if not tile_files:
+
+            print(
+                f"WARNING: No tiles found for "
+                f"{hydro_year} {quarter_name}"
+            )
+
+            continue
+
+        # --------------------------------------------------------
+        # Output composite
+        # --------------------------------------------------------
+
+        output_path = os.path.join(
+            COMPOSITE_DIR,
+            f"composite_{hydro_year}_{quarter_name}.tif"
+        )
+
+        print(
+            "Output composite:",
+            output_path
+        )
+
+        # --------------------------------------------------------
+        # Merge tiles
+        # --------------------------------------------------------
+
+        temp_path = merge_tiles_manual(
+            tile_files,
+            output_path
+        )
+
+        # --------------------------------------------------------
+        # Rename temporary file to final composite
+        # --------------------------------------------------------
+
+        if os.path.exists(output_path):
+
+            os.remove(output_path)
+
+        os.replace(
+            temp_path,
+            output_path
+        )
+
+        print()
+        print(
+            "OK: Composite created:"
+        )
+
+        print(
+            f"  {output_path}"
+        )
+
+print()
+print("=" * 80)
+print("QUARTERLY TILE MERGING FINISHED")
+print("=" * 80)
+
+print()
+print(
+    ">>> CHECKPOINT 10: Quarterly composites created"
+)
+
+
+# ================================================================
 # 15. CROP QUARTERLY COMPOSITES TO EL SALVADOR
 # ================================================================
 
