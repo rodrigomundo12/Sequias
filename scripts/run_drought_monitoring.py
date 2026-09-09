@@ -1991,24 +1991,20 @@ def merge_tiles_manual(
     output_path
 ):
     """
-    Merge Sentinel Hub tiles into one common output grid.
+    Merge Sentinel Hub tiles into one common geographic grid.
 
-    The Sentinel Hub tiles may have slightly different pixel dimensions
-    because bbox_to_dimensions() rounds each request independently.
+    The downloaded Sentinel Hub tiles can have slightly different
+    pixel dimensions because bbox_to_dimensions() rounds each
+    request independently.
 
-    This function therefore:
-      1. Opens all downloaded tiles.
-      2. Determines their geographic extent.
-      3. Creates one common output grid at RESOLUTION.
-      4. Reprojects/aggregates every tile into that grid using
-         average resampling.
-      5. Writes a temporary GeoTIFF.
+    This implementation does NOT use:
+        rasterio.merge.merge()
+        rasterio.warp.reproject()
 
-    The final mosaic remains in EPSG:4326 and uses the requested
-    RESOLUTION (currently 3000 m, approximately in geographic degrees).
+    This avoids the ArcGIS Pro / affine compatibility problem.
 
-    This avoids rasterio.merge.merge() and is compatible with the
-    ArcGIS Pro Python environment.
+    The final mosaic is created directly on an approximately
+    RESOLUTION-metre geographic grid.
     """
 
     if not tile_files:
@@ -2048,7 +2044,7 @@ def merge_tiles_manual(
             )
 
         # ============================================================
-        # CHECK COMMON CRS / BAND COUNT
+        # CHECK CRS / BAND COUNT
         # ============================================================
 
         for src in srcs:
@@ -2066,15 +2062,15 @@ def merge_tiles_manual(
                 )
 
         # ============================================================
-        # DETERMINE GEOGRAPHIC EXTENT
+        # DETERMINE TOTAL GEOGRAPHIC EXTENT
         # ============================================================
-
-        tile_info = []
 
         west = float("inf")
         south = float("inf")
         east = float("-inf")
         north = float("-inf")
+
+        tile_info = []
 
         for src in srcs:
 
@@ -2087,10 +2083,6 @@ def merge_tiles_manual(
             d = float(transform.d)
             e = float(transform.e)
             f = float(transform.f)
-
-            # --------------------------------------------------------
-            # Calculate raster corners manually.
-            # --------------------------------------------------------
 
             x1 = c
             y1 = f
@@ -2120,28 +2112,15 @@ def merge_tiles_manual(
                     "right": right,
                     "bottom": bottom,
                     "top": top,
+                    "pixel_width": abs(a),
+                    "pixel_height": abs(e)
                 }
             )
 
-            west = min(
-                west,
-                left
-            )
-
-            east = max(
-                east,
-                right
-            )
-
-            south = min(
-                south,
-                bottom
-            )
-
-            north = max(
-                north,
-                top
-            )
+            west = min(west, left)
+            east = max(east, right)
+            south = min(south, bottom)
+            north = max(north, top)
 
         print()
         print(
@@ -2165,16 +2144,10 @@ def merge_tiles_manual(
         )
 
         # ============================================================
-        # CREATE COMMON OUTPUT GRID
+        # FINAL RESOLUTION
         # ============================================================
 
         # RESOLUTION is the desired FINAL resolution in metres.
-        #
-        # Because the final raster is EPSG:4326, convert metres to
-        # approximately equivalent geographic degrees.
-        #
-        # This is the same geographic approximation used elsewhere
-        # in the processing workflow.
 
         pixel_size = (
             float(RESOLUTION)
@@ -2225,7 +2198,7 @@ def merge_tiles_manual(
         )
 
         # ============================================================
-        # DEFINE COMMON TRANSFORM
+        # CREATE OUTPUT TRANSFORM
         # ============================================================
 
         mosaic_transform = Affine(
@@ -2238,7 +2211,7 @@ def merge_tiles_manual(
         )
 
         # ============================================================
-        # ALLOCATE MOSAIC
+        # CREATE MOSAIC
         # ============================================================
 
         mosaic = np.full(
@@ -2252,7 +2225,7 @@ def merge_tiles_manual(
         )
 
         # ============================================================
-        # REPROJECT / AGGREGATE EACH TILE
+        # PLACE EACH TILE
         # ============================================================
 
         for idx, item in enumerate(
@@ -2267,10 +2240,6 @@ def merge_tiles_manual(
                 f"{idx}/{len(tile_info)}"
             )
 
-            # --------------------------------------------------------
-            # Read source tile
-            # --------------------------------------------------------
-
             data = src.read(
                 out_dtype=np.float32
             )
@@ -2280,24 +2249,262 @@ def merge_tiles_manual(
             ] = np.nan
 
             # --------------------------------------------------------
-            # Destination array for this tile
+            # Determine where this tile belongs in the final grid.
+            # --------------------------------------------------------
+
+            col_start = int(
+                round(
+                    (
+                        item["left"]
+                        - west
+                    )
+                    / pixel_size
+                )
+            )
+
+            row_start = int(
+                round(
+                    (
+                        north
+                        - item["top"]
+                    )
+                    / pixel_size
+                )
+            )
+
+            # --------------------------------------------------------
+            # Geographic dimensions of the tile
+            # --------------------------------------------------------
+
+            tile_width_degrees = (
+                item["right"]
+                - item["left"]
+            )
+
+            tile_height_degrees = (
+                item["top"]
+                - item["bottom"]
+            )
+
+            target_width = int(
+                round(
+                    tile_width_degrees
+                    / pixel_size
+                )
+            )
+
+            target_height = int(
+                round(
+                    tile_height_degrees
+                    / pixel_size
+                )
+            )
+
+            target_width = max(
+                1,
+                target_width
+            )
+
+            target_height = max(
+                1,
+                target_height
+            )
+
+            # --------------------------------------------------------
+            # Resize each tile directly using numpy.
             #
-            # Reproject directly into the common final grid.
+            # Sentinel Hub tiles are already in EPSG:4326 and are
+            # only being aggregated to the final coarse resolution.
+            # --------------------------------------------------------
+
+            src_height = data.shape[1]
+            src_width = data.shape[2]
+
+            # --------------------------------------------------------
+            # Determine the actual destination window.
+            # --------------------------------------------------------
+
+            row_end = min(
+                row_start + target_height,
+                mosaic_height
+            )
+
+            col_end = min(
+                col_start + target_width,
+                mosaic_width
+            )
+
+            if (
+                row_start < 0
+                or col_start < 0
+                or row_start >= mosaic_height
+                or col_start >= mosaic_width
+            ):
+
+                raise RuntimeError(
+                    "Calculated tile position is outside mosaic."
+                )
+
+            actual_height = (
+                row_end
+                - row_start
+            )
+
+            actual_width = (
+                col_end
+                - col_start
+            )
+
+            # --------------------------------------------------------
+            # Aggregate source pixels into final pixels.
+            #
+            # This avoids rasterio.warp.reproject() completely.
             # --------------------------------------------------------
 
             for band in range(count):
 
-                reproject(
-                    source=data[band],
-                    destination=mosaic[band],
-                    src_transform=src.transform,
-                    src_crs=src.crs,
-                    src_nodata=np.nan,
-                    dst_transform=mosaic_transform,
-                    dst_crs=crs,
-                    dst_nodata=np.nan,
-                    resampling=Resampling.average
+                band_data = data[band]
+
+                # Use block averaging through numpy.
+                #
+                # Build source coordinates corresponding to the
+                # destination pixels.
+
+                row_edges = np.linspace(
+                    0,
+                    src_height,
+                    actual_height + 1
                 )
+
+                col_edges = np.linspace(
+                    0,
+                    src_width,
+                    actual_width + 1
+                )
+
+                result = np.full(
+                    (
+                        actual_height,
+                        actual_width
+                    ),
+                    np.nan,
+                    dtype=np.float32
+                )
+
+                for r in range(actual_height):
+
+                    r0 = int(
+                        np.floor(
+                            row_edges[r]
+                        )
+                    )
+
+                    r1 = int(
+                        np.ceil(
+                            row_edges[r + 1]
+                        )
+                    )
+
+                    r0 = max(
+                        0,
+                        min(r0, src_height)
+                    )
+
+                    r1 = max(
+                        r0 + 1,
+                        min(r1, src_height)
+                    )
+
+                    for col in range(actual_width):
+
+                        c0 = int(
+                            np.floor(
+                                col_edges[col]
+                            )
+                        )
+
+                        c1 = int(
+                            np.ceil(
+                                col_edges[col + 1]
+                            )
+                        )
+
+                        c0 = max(
+                            0,
+                            min(c0, src_width)
+                        )
+
+                        c1 = max(
+                            c0 + 1,
+                            min(c1, src_width)
+                        )
+
+                        values = band_data[
+                            r0:r1,
+                            c0:c1
+                        ]
+
+                        valid = values[
+                            np.isfinite(values)
+                        ]
+
+                        if valid.size > 0:
+
+                            result[
+                                r,
+                                col
+                            ] = np.mean(valid)
+
+                # ----------------------------------------------------
+                # Write result into mosaic.
+                # ----------------------------------------------------
+
+                destination = mosaic[
+                    band,
+                    row_start:row_end,
+                    col_start:col_end
+                ]
+
+                # Preserve existing valid values where the new
+                # tile has no valid data.
+
+                valid_result = np.isfinite(
+                    result
+                )
+
+                empty_destination = ~np.isfinite(
+                    destination
+                )
+
+                destination[
+                    valid_result & empty_destination
+                ] = result[
+                    valid_result & empty_destination
+                ]
+
+                # Where both are valid, average overlapping values.
+
+                overlapping = (
+                    valid_result
+                    & ~empty_destination
+                )
+
+                destination[
+                    overlapping
+                ] = (
+                    destination[
+                        overlapping
+                    ]
+                    + result[
+                        overlapping
+                    ]
+                ) / 2.0
+
+                mosaic[
+                    band,
+                    row_start:row_end,
+                    col_start:col_end
+                ] = destination
 
             del data
 
@@ -2329,19 +2536,17 @@ def merge_tiles_manual(
             nodata=np.nan,
             compress="lzw",
             tiled=True,
-            blockxsize=256,
-            blockysize=256,
-            BIGTIFF="YES"
-        )
-
-        print()
-        print(
-            "Writing merged mosaic..."
+            BIGTIFF="IF_SAFER"
         )
 
         # ============================================================
         # WRITE OUTPUT
         # ============================================================
+
+        print()
+        print(
+            "Writing merged mosaic..."
+        )
 
         with rasterio.open(
             temp_path,
@@ -2372,10 +2577,6 @@ def merge_tiles_manual(
         return temp_path
 
     finally:
-
-        # ============================================================
-        # CLOSE SOURCE FILES
-        # ============================================================
 
         for src in srcs:
 
