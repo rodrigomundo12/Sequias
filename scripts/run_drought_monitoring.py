@@ -1227,7 +1227,7 @@ print("AOI bounds after conversion to WGS84:", aoi.bounds, flush=True)
 splitter = BBoxSplitter(
     [aoi],
     CRS.WGS84,
-    split_shape=(6, 10)
+    split_shape=(2, 2)
 )
 
 tiles = splitter.get_bbox_list()
