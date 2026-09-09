@@ -2450,11 +2450,13 @@ for hydro_year in YEARS:
         # --------------------------------------------------------
         # Output composite
         # --------------------------------------------------------
-
+        
         output_path = os.path.join(
-            COMPOSITE_DIR,
+            r"C:\Users\LLRL-PAHs2\Downloads\sequias-poligonos\data\quarterly_composites",
             f"composite_{hydro_year}_{quarter_name}.tif"
         )
+
+
 
         print(
             "Output composite:",
