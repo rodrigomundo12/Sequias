@@ -80,6 +80,21 @@
             margin-bottom: 5px;
         }
 
+        /* -------------------------------------------------------
+           MAP TITLE
+           ------------------------------------------------------- */
+
+        .map-title {
+            background: white;
+            padding: 8px 16px;
+            border-radius: 5px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            font-size: 16px;
+            text-align: center;
+        }
+
         .legend-item {
             display: flex;
             align-items: center;
@@ -90,6 +105,14 @@
             height: 18px;
             margin-right: 7px;
             border: 1px solid #555;
+        }
+
+        .leaflet-control.map-title-control {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            top: 10px;
+            margin: 0;
         }
 
     </style>
@@ -131,6 +154,34 @@
         8
     );
 
+    // ============================================================
+    // MAP TITLE
+    // ============================================================
+
+
+    const mapTitle =
+        L.control({
+            position: "topright"
+        });
+
+
+    mapTitle.onAdd = function() {
+
+        const div =
+            L.DomUtil.create(
+                "div",
+                "map-title"
+            );
+
+        div.innerHTML =
+            "ANOMALÍAS DE MAYO a JULIO";
+
+        return div;
+    };
+
+    mapTitle.addTo(map);
+
+
 
     // ============================================================
     // BASE MAP
@@ -152,11 +203,11 @@
 
     const classColors = {
 
-        1: "#8B0000",
-        2: "#FF8C00",
-        3: "#FFFF66",
-        4: "#90EE90",
-        5: "#006400"
+        1: "#F4B4B4",
+        2: "#FAD09E",
+        3: "#FFF9A6",
+        4: "#B2E2E2",
+        5: "#AEC6CF"
 
     };
 
@@ -265,10 +316,10 @@
 
             "<div style='font-family: Arial, sans-serif;'>" +
 
-            "<b>Index:</b> " +
-            currentIndex +
+            //"<b>Index:</b> " +
+            //currentIndex +
 
-            "<br>" +
+            //"<br>" +
 
             "<b>Class:</b> " +
             label +

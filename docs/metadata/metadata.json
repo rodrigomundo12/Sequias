@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-08T07:09:31.374598",
+  "generated_at": "2026-09-08T20:17:26.040774",
   "latest_complete_quarter": "Q1_May_Jul",
   "latest_hydrological_year": 2026,
   "hydrological_years": [
@@ -19,7 +19,7 @@
     "NDII",
     "NDVI"
   ],
-  "resolution_m": 3000,
+  "resolution_m": 1500,
   "aoi": "El Salvador",
   "crs": "EPSG:4326",
   "anomaly_method": "leave-one-year-out mean",
