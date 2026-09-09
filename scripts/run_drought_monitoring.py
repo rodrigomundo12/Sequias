@@ -1201,7 +1201,7 @@ print(">>> CHECKPOINT 5: Python script finished section 6", flush=True)
 # 7. SENTINEL-2 PROCESSING PARAMETERS
 # ================================================================
 
-RESOLUTION = 3000
+RESOLUTION = 100
 
 tile_px = 500
 
