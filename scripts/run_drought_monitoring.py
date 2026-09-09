@@ -78,6 +78,8 @@ import fiona
 
 from tqdm import tqdm
 
+from rasterio.warp import reproject
+from rasterio.enums import Resampling
 from rasterio.merge import merge
 from rasterio.transform import from_bounds, Affine
 from rasterio.features import shapes
@@ -1989,14 +1991,28 @@ def merge_tiles_manual(
     output_path
 ):
     """
-    Merge regularly arranged EPSG:4326 tiles without using
-    rasterio.merge.merge().
+    Merge Sentinel Hub tiles into one common output grid.
 
-    This avoids the Affine/rasterio compatibility problem found
-    in the ArcGIS Pro Python environment.
+    The Sentinel Hub tiles may have slightly different pixel dimensions
+    because bbox_to_dimensions() rounds each request independently.
+
+    This function therefore:
+      1. Opens all downloaded tiles.
+      2. Determines their geographic extent.
+      3. Creates one common output grid at RESOLUTION.
+      4. Reprojects/aggregates every tile into that grid using
+         average resampling.
+      5. Writes a temporary GeoTIFF.
+
+    The final mosaic remains in EPSG:4326 and uses the requested
+    RESOLUTION (currently 3000 m, approximately in geographic degrees).
+
+    This avoids rasterio.merge.merge() and is compatible with the
+    ArcGIS Pro Python environment.
     """
 
     if not tile_files:
+
         raise RuntimeError(
             "No tile files were provided for merging."
         )
@@ -2006,13 +2022,13 @@ def merge_tiles_manual(
         f"Merging {len(tile_files)} tiles"
     )
 
-    # ------------------------------------------------------------
-    # Open all tiles
-    # ------------------------------------------------------------
-
     srcs = []
 
     try:
+
+        # ============================================================
+        # OPEN ALL TILES
+        # ============================================================
 
         for path in tile_files:
 
@@ -2020,14 +2036,8 @@ def merge_tiles_manual(
                 rasterio.open(path)
             )
 
-        # --------------------------------------------------------
-        # Validate common properties
-        # --------------------------------------------------------
-
         first = srcs[0]
 
-        width = first.width
-        height = first.height
         count = first.count
         crs = first.crs
 
@@ -2037,19 +2047,11 @@ def merge_tiles_manual(
                 f"Expected 5 bands, found {count}."
             )
 
+        # ============================================================
+        # CHECK COMMON CRS / BAND COUNT
+        # ============================================================
+
         for src in srcs:
-
-            if src.width != width:
-
-                raise RuntimeError(
-                    "Tile widths are inconsistent."
-                )
-
-            if src.height != height:
-
-                raise RuntimeError(
-                    "Tile heights are inconsistent."
-                )
 
             if src.count != count:
 
@@ -2063,20 +2065,18 @@ def merge_tiles_manual(
                     "Tile CRS values are inconsistent."
                 )
 
-        # --------------------------------------------------------
-        # Get tile geographic bounds
-        # --------------------------------------------------------
+        # ============================================================
+        # DETERMINE GEOGRAPHIC EXTENT
+        # ============================================================
 
         tile_info = []
 
-        for src in srcs:
+        west = float("inf")
+        south = float("inf")
+        east = float("-inf")
+        north = float("-inf")
 
-            # ------------------------------------------------------------
-            # Calculate raster bounds manually.
-            #
-            # Avoid src.bounds because the ArcGIS Pro environment has an
-            # Affine compatibility issue.
-            # ------------------------------------------------------------
+        for src in srcs:
 
             transform = src.transform
 
@@ -2088,132 +2088,134 @@ def merge_tiles_manual(
             e = float(transform.e)
             f = float(transform.f)
 
-            left = c
-            top = f
+            # --------------------------------------------------------
+            # Calculate raster corners manually.
+            # --------------------------------------------------------
 
-            right = (
+            x1 = c
+            y1 = f
+
+            x2 = (
                 c
                 + a * src.width
                 + b * src.height
             )
 
-            bottom = (
+            y2 = (
                 f
                 + d * src.width
                 + e * src.height
             )
 
-            bounds = (
-                min(left, right),
-                min(bottom, top),
-                max(left, right),
-                max(bottom, top)
-            )
+            left = min(x1, x2)
+            right = max(x1, x2)
+
+            bottom = min(y1, y2)
+            top = max(y1, y2)
 
             tile_info.append(
                 {
                     "src": src,
-                    "left": float(bounds[0]),
-                    "bottom": float(bounds[1]),
-                    "right": float(bounds[2]),
-                    "top": float(bounds[3]),
+                    "left": left,
+                    "right": right,
+                    "bottom": bottom,
+                    "top": top,
                 }
             )
 
-        # --------------------------------------------------------
-        # Determine common pixel size
-        # --------------------------------------------------------
+            west = min(
+                west,
+                left
+            )
 
-        pixel_width = (
-            tile_info[0]["right"]
-            - tile_info[0]["left"]
-        ) / width
+            east = max(
+                east,
+                right
+            )
 
-        pixel_height = (
-            tile_info[0]["top"]
-            - tile_info[0]["bottom"]
-        ) / height
+            south = min(
+                south,
+                bottom
+            )
 
-        # --------------------------------------------------------
-        # Check that all tiles have the same resolution
-        # --------------------------------------------------------
+            north = max(
+                north,
+                top
+            )
 
-        tolerance = 1e-10
-
-        for item in tile_info:
-
-            current_pixel_width = (
-                item["right"]
-                - item["left"]
-            ) / width
-
-            current_pixel_height = (
-                item["top"]
-                - item["bottom"]
-            ) / height
-
-            if (
-                abs(
-                    current_pixel_width
-                    - pixel_width
-                ) > tolerance
-            ):
-
-                raise RuntimeError(
-                    "Tile pixel widths are inconsistent."
-                )
-
-            if (
-                abs(
-                    current_pixel_height
-                    - pixel_height
-                ) > tolerance
-            ):
-
-                raise RuntimeError(
-                    "Tile pixel heights are inconsistent."
-                )
-
-        # --------------------------------------------------------
-        # Determine total mosaic extent
-        # --------------------------------------------------------
-
-        west = min(
-            item["left"]
-            for item in tile_info
+        print()
+        print(
+            "Mosaic geographic extent:"
         )
 
-        east = max(
-            item["right"]
-            for item in tile_info
+        print(
+            f"  West:  {west:.10f}"
         )
 
-        south = min(
-            item["bottom"]
-            for item in tile_info
+        print(
+            f"  East:  {east:.10f}"
         )
 
-        north = max(
-            item["top"]
-            for item in tile_info
+        print(
+            f"  South: {south:.10f}"
         )
 
-        # --------------------------------------------------------
-        # Calculate mosaic dimensions
-        # --------------------------------------------------------
+        print(
+            f"  North: {north:.10f}"
+        )
+
+        # ============================================================
+        # CREATE COMMON OUTPUT GRID
+        # ============================================================
+
+        # RESOLUTION is the desired FINAL resolution in metres.
+        #
+        # Because the final raster is EPSG:4326, convert metres to
+        # approximately equivalent geographic degrees.
+        #
+        # This is the same geographic approximation used elsewhere
+        # in the processing workflow.
+
+        pixel_size = (
+            float(RESOLUTION)
+            / 111320.0
+        )
 
         mosaic_width = int(
-            round(
+            np.ceil(
                 (east - west)
-                / pixel_width
+                / pixel_size
             )
         )
 
         mosaic_height = int(
-            round(
+            np.ceil(
                 (north - south)
-                / pixel_height
+                / pixel_size
             )
+        )
+
+        if mosaic_width <= 0:
+
+            raise RuntimeError(
+                "Calculated mosaic width is invalid."
+            )
+
+        if mosaic_height <= 0:
+
+            raise RuntimeError(
+                "Calculated mosaic height is invalid."
+            )
+
+        print()
+        print(
+            f"Final mosaic resolution: "
+            f"{RESOLUTION} m"
+        )
+
+        print(
+            f"Approximate pixel size: "
+            f"{pixel_size:.10f} degrees"
         )
 
         print(
@@ -2222,15 +2224,22 @@ def merge_tiles_manual(
             f"{mosaic_height}"
         )
 
-        print(
-            f"Pixel size: "
-            f"{pixel_width:.10f} x "
-            f"{pixel_height:.10f} degrees"
+        # ============================================================
+        # DEFINE COMMON TRANSFORM
+        # ============================================================
+
+        mosaic_transform = Affine(
+            pixel_size,
+            0.0,
+            west,
+            0.0,
+            -pixel_size,
+            north
         )
 
-        # --------------------------------------------------------
-        # Allocate mosaic
-        # --------------------------------------------------------
+        # ============================================================
+        # ALLOCATE MOSAIC
+        # ============================================================
 
         mosaic = np.full(
             (
@@ -2242,9 +2251,9 @@ def merge_tiles_manual(
             dtype=np.float32
         )
 
-        # --------------------------------------------------------
-        # Insert each tile
-        # --------------------------------------------------------
+        # ============================================================
+        # REPROJECT / AGGREGATE EACH TILE
+        # ============================================================
 
         for idx, item in enumerate(
             tile_info,
@@ -2258,119 +2267,54 @@ def merge_tiles_manual(
                 f"{idx}/{len(tile_info)}"
             )
 
+            # --------------------------------------------------------
+            # Read source tile
+            # --------------------------------------------------------
+
             data = src.read(
                 out_dtype=np.float32
             )
-
-            # ----------------------------------------------------
-            # Replace non-finite values with NaN
-            # ----------------------------------------------------
 
             data[
                 ~np.isfinite(data)
             ] = np.nan
 
-            # ----------------------------------------------------
-            # Calculate destination position
-            # ----------------------------------------------------
+            # --------------------------------------------------------
+            # Destination array for this tile
+            #
+            # Reproject directly into the common final grid.
+            # --------------------------------------------------------
 
-            col_offset = int(
-                round(
-                    (
-                        item["left"]
-                        - west
-                    )
-                    / pixel_width
+            for band in range(count):
+
+                reproject(
+                    source=data[band],
+                    destination=mosaic[band],
+                    src_transform=src.transform,
+                    src_crs=src.crs,
+                    src_nodata=np.nan,
+                    dst_transform=mosaic_transform,
+                    dst_crs=crs,
+                    dst_nodata=np.nan,
+                    resampling=Resampling.average
                 )
-            )
-
-            row_offset = int(
-                round(
-                    (
-                        north
-                        - item["top"]
-                    )
-                    / pixel_height
-                )
-            )
-
-            row_end = (
-                row_offset
-                + height
-            )
-
-            col_end = (
-                col_offset
-                + width
-            )
-
-            # ----------------------------------------------------
-            # Validate destination
-            # ----------------------------------------------------
-
-            if row_offset < 0:
-
-                raise RuntimeError(
-                    "Calculated negative row offset."
-                )
-
-            if col_offset < 0:
-
-                raise RuntimeError(
-                    "Calculated negative column offset."
-                )
-
-            if row_end > mosaic_height:
-
-                raise RuntimeError(
-                    "Tile extends beyond mosaic height."
-                )
-
-            if col_end > mosaic_width:
-
-                raise RuntimeError(
-                    "Tile extends beyond mosaic width."
-                )
-
-            # ----------------------------------------------------
-            # Write tile into mosaic
-            # ----------------------------------------------------
-
-            mosaic[
-                :,
-                row_offset:row_end,
-                col_offset:col_end
-            ] = data
 
             del data
 
             gc.collect()
 
-        # --------------------------------------------------------
-        # Create transform manually
-        # --------------------------------------------------------
-
-        transform = Affine(
-            pixel_width,
-            0.0,
-            west,
-            0.0,
-            -pixel_height,
-            north
-        )
-
-        # --------------------------------------------------------
-        # Temporary mosaic
-        # --------------------------------------------------------
+        # ============================================================
+        # TEMPORARY MOSAIC
+        # ============================================================
 
         temp_path = (
             output_path
             + ".tmp.tif"
         )
 
-        # --------------------------------------------------------
-        # Prepare output profile
-        # --------------------------------------------------------
+        # ============================================================
+        # OUTPUT PROFILE
+        # ============================================================
 
         profile = first.profile.copy()
 
@@ -2381,7 +2325,7 @@ def merge_tiles_manual(
             count=count,
             dtype="float32",
             crs=crs,
-            transform=transform,
+            transform=mosaic_transform,
             nodata=np.nan,
             compress="lzw",
             tiled=True,
@@ -2395,9 +2339,9 @@ def merge_tiles_manual(
             "Writing merged mosaic..."
         )
 
-        # --------------------------------------------------------
-        # Write temporary mosaic
-        # --------------------------------------------------------
+        # ============================================================
+        # WRITE OUTPUT
+        # ============================================================
 
         with rasterio.open(
             temp_path,
@@ -2416,194 +2360,34 @@ def merge_tiles_manual(
 
         gc.collect()
 
+        print()
         print(
-            f"Temporary mosaic created:"
-            f" {os.path.basename(temp_path)}"
+            "Temporary mosaic created:"
+        )
+
+        print(
+            f"  {temp_path}"
         )
 
         return temp_path
 
     finally:
 
-        # --------------------------------------------------------
-        # Close all source files
-        # --------------------------------------------------------
+        # ============================================================
+        # CLOSE SOURCE FILES
+        # ============================================================
 
         for src in srcs:
 
             try:
+
                 src.close()
+
             except Exception:
+
                 pass
 
         gc.collect()
-
-
-# ================================================================
-# CREATE THE NATIONAL QUARTERLY COMPOSITES
-# ================================================================
-
-print()
-print(
-    "Searching for quarterly tiles..."
-)
-
-
-for hydro_year in YEARS:
-
-    quarter_name = TARGET_QUARTER_NAME
-
-    # ------------------------------------------------------------
-    # Find tiles belonging to this hydro year and quarter
-    # ------------------------------------------------------------
-
-    tile_files = sorted(
-        [
-            os.path.join(
-                QUARTERLY_TILE_DIR,
-                filename
-            )
-
-            for filename in os.listdir(
-                QUARTERLY_TILE_DIR
-            )
-
-            if (
-                filename.startswith(
-                    f"{quarter_name}_{hydro_year}_"
-                )
-                and filename.endswith(".tif")
-                and "tmp" not in filename
-            )
-        ]
-    )
-
-    # ------------------------------------------------------------
-    # Check tile availability
-    # ------------------------------------------------------------
-
-    if not tile_files:
-
-        print()
-        print(
-            f"WARNING: No quarterly tiles found "
-            f"for {hydro_year}."
-        )
-
-        continue
-
-    print()
-    print("=" * 70)
-
-    print(
-        f"HYDROLOGICAL YEAR: {hydro_year}"
-    )
-
-    print(
-        f"QUARTER: {quarter_name}"
-    )
-
-    print(
-        f"TILES FOUND: {len(tile_files)}"
-    )
-
-    print("=" * 70)
-
-    # ------------------------------------------------------------
-    # Expected national composite
-    # ------------------------------------------------------------
-
-    output_path = composite_path(
-        hydro_year,
-        quarter_name
-    )
-
-    # ------------------------------------------------------------
-    # If composite already exists, don't merge again
-    # ------------------------------------------------------------
-
-    if os.path.exists(output_path):
-
-        print()
-        print(
-            "Existing composite found:"
-        )
-
-        print(
-            f"  {os.path.basename(output_path)}"
-        )
-
-        continue
-
-    # ------------------------------------------------------------
-    # Merge tiles
-    # ------------------------------------------------------------
-
-    temp_mosaic = None
-
-    try:
-
-        temp_mosaic = merge_tiles_manual(
-            tile_files,
-            output_path
-        )
-
-        # --------------------------------------------------------
-        # Crop/mask to El Salvador
-        # --------------------------------------------------------
-
-        print()
-        print(
-            "Masking composite to El Salvador boundary..."
-        )
-
-        crop_raster_to_aoi(
-            temp_mosaic,
-            output_path,
-            aoi_gdf
-        )
-
-        print()
-        print(
-            f"Composite created:"
-        )
-
-        print(
-            f"  {output_path}"
-        )
-
-    finally:
-
-        # --------------------------------------------------------
-        # Remove temporary mosaic
-        # --------------------------------------------------------
-
-        if (
-            temp_mosaic is not None
-            and os.path.exists(temp_mosaic)
-        ):
-
-            try:
-
-                os.remove(
-                    temp_mosaic
-                )
-
-            except Exception as e:
-
-                print(
-                    f"Warning: could not remove "
-                    f"temporary file: {e}"
-                )
-
-        gc.collect()
-
-
-print()
-print("=" * 80)
-print("QUARTERLY COMPOSITE CREATION COMPLETE")
-print("=" * 80)
-print(">>> CHECKPOINT 10: Python script finished section 14", flush=True)
 
 # ================================================================
 # 15. CROP QUARTERLY COMPOSITES TO EL SALVADOR
