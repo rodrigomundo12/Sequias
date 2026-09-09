@@ -70,10 +70,10 @@ INDICES = [
 # ================================================================
 
 QUARTER_MONTHS = {
-    "Q1_May_Jul": "MAYO–JULIO",
-    "Q2_Aug_Oct": "AGOSTO–OCTUBRE",
-    "Q3_Nov_Jan": "NOVIEMBRE–ENERO",
-    "Q4_Feb_Apr": "FEBRERO–ABRIL",
+    "Q1_May_Jul": "MAYO a JULIO",
+    "Q2_Aug_Oct": "AGOSTO a OCTUBRE",
+    "Q3_Nov_Jan": "NOVIEMBRE a ENERO",
+    "Q4_Feb_Apr": "FEBRERO a ABRIL",
 }
 
 # ================================================================
