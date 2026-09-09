@@ -3045,7 +3045,7 @@ def crop_raster_to_aoi(input_path, output_path, aoi_gdf):
             transform=new_transform,
             nodata=np.nan,
             compress="lzw",
-            tiled=True,
+            tiled=False,
             BIGTIFF="IF_SAFER"
         )
 
