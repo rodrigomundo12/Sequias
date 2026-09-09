@@ -1203,7 +1203,7 @@ print(">>> CHECKPOINT 5: Python script finished section 6", flush=True)
 # 7. SENTINEL-2 PROCESSING PARAMETERS
 # ================================================================
 
-RESOLUTION = 100
+RESOLUTION = 1500
 
 tile_px = 500
 
@@ -2557,7 +2557,7 @@ def merge_tiles_manual(
             for band in range(count):
 
                 dst.write(
-                    mosaic[band],
+                    mosaic[band].astype(np.float32),
                     band + 1
                 )
 
@@ -3279,21 +3279,15 @@ for hydro_year in available_years:
     profile.update(
 
         driver="GTiff",
-
         dtype="float32",
-
         count=len(INDEX_NAMES),
-
         compress="lzw",
 
-        tiled=True,
-
-        blockxsize=256,
-
-        blockysize=256,
+        #tiled=True,
+#        blockxsize=256,
+#        blockysize=256,
 
         BIGTIFF="YES",
-
         nodata=np.nan
 
     )
