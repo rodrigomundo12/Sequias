@@ -81,16 +81,11 @@ QUARTER_MONTHS = {
 # ================================================================
 
 CLASS_COLORS = {
-    1: "#F4B4B4",
-    2: "#FAD09E",
+    1: "#AEC6CF",
+    2: "#B2E2E2",
     3: "#FFF9A6",
-    4: "#B2E2E2",
-    5: "#AEC6CF"
-    #1: "#8B0000",   # Very Low
-    #2: "#FF8C00",   # Low
-    #3: "#FFFF66",   # Normal
-    #4: "#90EE90",   # High
-    #5: "#006400",   # Very High
+    4: "#FAD09E",
+    5: "#F4B4B4"
 }
 
 CLASS_NAMES = {
@@ -490,11 +485,11 @@ MAP_HTML = r"""<!DOCTYPE html>
 
     const classColors = {
 
-        1: "#F4B4B4",
-        2: "#FAD09E",
+        1: "#AEC6CF",
+        2: "#B2E2E2",
         3: "#FFF9A6",
-        4: "#B2E2E2",
-        5: "#AEC6CF"
+        4: "#FAD09E",
+        5: "#F4B4B4"
 
     };
 
